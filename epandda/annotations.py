@@ -29,7 +29,7 @@ class annotations(mongoBasedResource):
             'parameters': {},
           }
 
-          for p in ['annotationDate', 'annotationDateAfter', 'annotationDateBefore']:  
+          for p in ['annotationDate', 'annotationDateAfter', 'annotationDateBefore', 'quality_score']:  
  
             if params[p]:
 
@@ -40,8 +40,10 @@ class annotations(mongoBasedResource):
                 annoQuery.append({"annotatedAt": { '$gte': params[p]} }) 
             
               if 'annotationDateBefore' == p:
-                print "annotation Date Before: " + str(params[p])
                 annoQuery.append({"annotatedAt": { '$lte': params[p]} })
+
+              if 'quality_score' == p:
+                annoQuery.append({"quality_score": { '$gte': int(params[p]) }})
 
               criteria['parameters'][p] = str(params[p]).lower()
 
@@ -104,6 +106,13 @@ class annotations(mongoBasedResource):
                     "type": "text",
                     "required": False,
                     "description": "Filter annotation results before provided date. Format annotationDateBefore=YYYY-MM-DD"
+                },
+                {
+                   "name": "quality_score",
+                   "label": "Quality Score",
+                   "type": "text",
+                   "required": False,
+                   "description": "Filter annotation results equal to or greater than value"
                 }
             ]
         }
