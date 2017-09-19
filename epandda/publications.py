@@ -63,7 +63,7 @@ class publications(mongoBasedResource):
 
               if 'scientific_name' == p:
                 higher_taxa = str(params[p]).lower()
-                pubQuery.append({"higher_taxa": higher_taxa })  
+                pubQuery.append({ "$or": [{"higher_taxa": higher_taxa }, { "index_term": { "$regex": re.compile(higher_taxa, re.IGNORECASE) }} ] })  
 
               if 'stateProvinceName' == p:
                 state = str(params[p]).lower()
