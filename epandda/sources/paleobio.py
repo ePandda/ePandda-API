@@ -16,4 +16,4 @@ class paleobio:
 "lithification2", "minor_lithology2", "environment", "tectonic_setting", "geology_comments", 
 "taxonomy_comments", "collection_comments", "collectors", "collection_type", "assembl_comps", 
 "preservation_comments", "pres_mode", "lithdescript", "stratcomments", "stratscale", "geogcomments", 
-"paleolng", "paleolat", "plate", "latlng_precision", "lat", "lng", "reference_no" "coll_reference_no"]
+"paleolng", "paleolat", "plate", "latlng_precision", "lat", "lng", "reference_no" "coll_reference_no", "collection_no"]

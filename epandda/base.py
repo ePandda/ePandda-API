@@ -453,12 +453,13 @@ class baseResource(Resource):
 
 
         # Get annotations by resolved PBDB Ref URL
-        if resp['includeAnnotations']:
-          resp['annotations'] = []
-          for pb in return_object['results']['pbdb_resolved']:
-            annoCursor = self.annotations.find({"hasBody.@id": pb['url']},{"_id": False})
-            for anno in annoCursor:
-              resp['annotations'].append( anno )
+	if "includeAnnotations" in resp:
+          if resp['includeAnnotations']:
+            resp['annotations'] = []
+            for pb in return_object['results']['pbdb_resolved']:
+              annoCursor = self.annotations.find({"hasBody.@id": pb['url']},{"_id": False})
+              for anno in annoCursor:
+                resp['annotations'].append( anno )
 
 
         if self.returnResponse:

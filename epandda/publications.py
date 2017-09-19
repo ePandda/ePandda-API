@@ -26,10 +26,13 @@ class publications(mongoBasedResource):
         # will throw exception if required param is not present
         params = self.getParams()
 
-        if "true" == params['includeAnnotations']:
-          params['includeAnnotations'] = True
+        if 'includeAnnotations' in params:
+		if "true" == params['includeAnnotations']:
+        	  params['includeAnnotations'] = True
+        	else:
+        		  params['includeAnnotations'] = False
         else:
-          params['includeAnnotations'] = False
+        	  params['includeAnnotations'] = False
 
         # offset and limit returned as ints with default if not set
         offset = self.offset()

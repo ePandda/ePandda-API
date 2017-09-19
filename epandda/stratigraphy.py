@@ -2,6 +2,8 @@ from mongo import mongoBasedResource
 from flask_restful import reqparse
 import gridfs
 import json
+import re
+from elasticsearch import Elasticsearch
 
 parser = reqparse.RequestParser()
 
@@ -18,9 +20,13 @@ class stratigraphy(mongoBasedResource):
     def process(self):
     	# Mongodb index for localities
 		sindex = self.client.endpoints.chronoStratIndex
+		lookup = self.client.endpoints.chronostratLookup
 		# Mongodb gridFS instance
 		grid = gridfs.GridFS(self.client.endpoints)                   
-
+	
+		# We use Elasticsearch to provide fuzzy matching on search terms
+		es = Elasticsearch(['http://whirl.mine.nu:9200'])	
+	
 		# returns dictionary of params as defined in endpoint description
 		# will throw exception if required param is not present
 		params = self.getParams()
@@ -37,8 +43,24 @@ class stratigraphy(mongoBasedResource):
 				val = p.keys()[0]
 				if (params[val]):
 					criteria['parameters'][val] = params[val]
-					for field in p[val]:
-						stratQuery.append({field: params[val]})
+					chrono_range = re.match(r'^([\w\s]+)[\s]*(?:-|to|$)[\s]*([\w\s]*)$', params[val])
+					chrono_early = chrono_range.group(1)
+					if chrono_range.group(2) != '':
+						chrono_late = chrono_range.group(2)
+					else:
+						chrono_late = chrono_early
+					ma_start_score = ma_end_score = 0
+					ma_start_res = es.search(index="chronolookup", body={"query": {"match": {"name": {"query": chrono_early, "fuzziness": "AUTO"}}}})
+					for hit in ma_start_res['hits']['hits']:
+						if hit['_score'] > ma_start_score:
+							ma_start = hit["_source"]["start_ma"]
+							ma_start_score = hit['_score']
+					ma_end_res = es.search(index="chronolookup", body={"query": {"match": {"name": {"query": chrono_late, "fuzziness": "AUTO"}}}})
+					for hit in ma_end_res['hits']['hits']:
+						if hit['_score'] > ma_end_score:
+							ma_end = hit["_source"]["end_ma"]
+							ma_end_score = hit['_score']
+					stratQuery.append({'earlyBound': {'$lte': ma_start}, 'lateBound': {'$gte': ma_end}})
 			if(params['chronostratigraphy']):
 				criteria['parameters']['chronostratigraphy'] = params['chronostratigraphy']
 				stratQuery.append({'$text': {'$search': '"' + params['chronostratigraphy'] + '"'}})
@@ -111,117 +133,30 @@ class stratigraphy(mongoBasedResource):
 				"label": "Chronostratigraphy Full Text",
 				"type": "text",
 				"required": False,
-				"description": "Search on the a full chronostratigraphic hierarchy "
+				"description": "Search for a single term in the chronostratigraphic hierarchy"
 			},{
 				"name": "stage",
 				"label": "Stage/Age",
 				"type": "text",
 				"required": False,
-				"description": "The chronostratigraphic Stage/Age. Searches both high/low"
+				"description": "Search a single or range of age/stages. Can be formatted as 'age1-age2' or 'age1 to age2'"
 			},{
 				"name": "series",
 				"label": "Series/Epoch",
 				"type": "text",
 				"required": False,
-				"description": "The chronostratigraphic Series/Epoch. Searches both high/low"
+				"description": "Search a single or range of series/epochs. Can be formatted as 'epoch1-epoch2' or 'epoch1 to epoch2'"
 			},{
 				"name": "system",
 				"label": "System/Period",
 				"type": "text",
 				"required": False,
-				"description": "The chronostratigraphic System/Period. Searches both high/low"
+				"description": "Search a single or range of age/stages. Can be formatted as 'period1-period2' or 'period1 to period2'"
 			},{
 				"name": "erathem",
 				"label": "Erathem/Era",
 				"type": "text",
 				"required": False,
-				"description": "The chronostratigraphic Erathem/Era. Searches both high/low"
+				"description": "Search a single or range of age/stages. Can be formatted as 'era1-era2' or 'era1 to era2'"
 			}]
 		}
-			
-    
-    '''
-    def get(self):
-
-        # Required
-        scientific_name = self.getRequest().args.get('scientific_name')
-        formation       = self.getRequest().args.get('formation')
-
-        # Optional
-        state_prov      = self.getRequest().args.get('state_province')
-        county          = self.getRequest().args.get('county')
-        locality        = self.getRequest().args.get('locality')       # param
-        
-
-        params = [
-          {
-            "name": "scientific_name",
-            "type": "text",
-            "value": scientific_name,
-            "required": True,
-            "description": "The taxon being searched in a given stratigraphic range"
-          },
-          {
-            "name": "formation",
-            "type": "text",
-            "value": formation,
-            "required": True,
-            "description": "The geologic formation to search for provided taxa"
-          },
-          {
-            "name": "state_province",
-            "type": "text",
-            "value": state_prov,
-            "required": False,
-            "description": "The state or province to constrain the search of a given taxa in a given formation"
-          },
-          {
-            "name": "county",
-            "type": "text",
-            "value": county,
-            "required": False,
-            "description": "The county to constrain the search of a given taxa in a given formation"
-          },
-          {
-            "name": "locality",
-            "type": "text",
-            "value": locality,
-            "required": False,
-            "description": "A locality to constrain the search of a given taxa in a given formation"
-          }
-        ]
-
-
-        lindex = self.client.test.spIndex                       # Mongodb index for localities
-
-        if locality:
-          res = lindex.find({"$text": {"$search": locality}})
-
-          d = []
-          for i in res:
-              terms = i['original_terms']
-              terms.append(locality)
-              item = {"terms": terms, "matches": {"pbdb": i['pbdb_data'], "idigbio": i['idb_data']}}
-              d.append(item)
-
-          resp = {'data': self.resolveReferences(d)}
-
-        else:
-
-          resp = {
-            'endpoint_description': 'Returns specicmen occurrence records from a given formation',
-            'params': params
-          }
-
-        return response_handler( resp )
-
-    def post(self):
-      args = parser.parse_args()
- 
-      resp = {
-        'endpoint_description': 'Returns specimen occurrence with stratigraphic records from a given formation',
-        'params': args
-      }
-
-      return response_handler( resp )
-	'''

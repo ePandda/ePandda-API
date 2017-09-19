@@ -2,6 +2,7 @@ from mongo import mongoBasedResource
 from flask_restful import reqparse
 import gridfs
 import json
+from elasticsearch import Elasticsearch
 
 parser = reqparse.RequestParser()
 
@@ -17,7 +18,10 @@ class lithostratigraphy(mongoBasedResource):
         lindex = self.client.endpoints.lithoStratIndex
         # Mongodb gridFS instance
         grid = gridfs.GridFS(self.client.endpoints)
-
+        
+        # We use Elasticsearch to provide fuzzy matching on search terms
+        es = Elasticsearch(['http://whirl.mine.nu:9200'])
+		
         # returns dictionary of params as defined in endpoint description
         # will throw exception if required param is not present
         params = self.getParams()
@@ -26,17 +30,39 @@ class lithostratigraphy(mongoBasedResource):
         limit = self.limit()
         if self.paramCount > 0:
             res = None
+            unit_score = 0
+            unit_names = []
             criteria = {'endpoint': 'lithostratigraphy', 'parameters': {}, 'matchTerms': []}
             lithoQuery = []
+            #if(params['lithostratigraphy']):
+            #    criteria['parameters']['lithostratigraphy'] = params['lithostratigraphy']
+            #    lithoQuery.append({'$text': {'$search': '"' + params['lithostratigraphy'] + '"'}})
+            #else:
+            #    return self.respondWithError({"GENERAL": "Need to specific a lithostratigraphic term"})
+			
+            #if(params['rank']):
+            #    lithoQuery.append({'rank': params['rank']})
             if(params['lithostratigraphy']):
                 criteria['parameters']['lithostratigraphy'] = params['lithostratigraphy']
-                lithoQuery.append({'$text': {'$search': '"' + params['lithostratigraphy'] + '"'}})
+                if params['rank']:
+                    criteria['parameters']['rank'] = params['rank']
+                    litho_units = es.search(index="litholookup", body={"query": {"bool": {"must": [{"match": {"name": {"query": params["lithostratigraphy"], "fuzziness": "AUTO"}}}, {"term": {"level": params["rank"]}}]}}})
+                else:
+                    litho_units = es.search(index="litholookup", body={"query": {"match": {"name": {"query": params["lithostratigraphy"], "fuzziness": "AUTO"}}}})
             else:
                 return self.respondWithError({"GENERAL": "Need to specific a lithostratigraphic term"})
-
-            if(params['rank']):
-                lithoQuery.append({'rank': params['rank']})
-
+            for unit in litho_units['hits']['hits']:
+                if unit['_score'] > unit_score:
+                    unit_names.append(unit["_source"]["name"])
+                    unit_rank = unit['_source']['level']
+                    unit_score = unit['_score']
+                    if 'child_formations' in unit['_source']:
+                        for child_formation in unit['_source']['child_formations']:
+                            unit_names.append(child_formation)
+                    if 'child_members' in unit['_source']:
+                        for child_member in unit['_source']['child_members']:
+                            unit_names.append(child_member)
+            lithoQuery.append({"name": {'$in': unit_names}})
             if len(lithoQuery) > 0:
                 res = lindex.find({'$and': lithoQuery})
             else:

@@ -141,11 +141,11 @@ class taxonomy(mongoBasedResource):
 				"description": "A search across all levels of of the taxonomic hierarchy"
 			},
 			{
-				"name": "scientificName",
-				"label": "Scientific Name",
+				"name": "genus",
+				"label": "Genus",
 				"type": "text",
 				"required": False,
-				"description": "A specific scientific name, including or not including scientific name authorship and year"
+				"description": "Genus"
 			},
 			{
 				"name": "species",
@@ -155,51 +155,51 @@ class taxonomy(mongoBasedResource):
 				"description": "The species (specific epithet) of the specimen"
 			},
 			{
-				"name": "genus",
-				"label": "Genus",
+				"name": "scientificName",
+				"label": "Scientific Name",
 				"type": "text",
 				"required": False,
-				"description": "Genus name"
+				"description": "A formatted scientific name, including or not including scientific name authorship and year"
 			},
 			{
 				"name": "family",
 				"label": "Family",
 				"type": "text",
 				"required": False,
-				"description": "Family name"
+				"description": "Taxonomic family"
 			},
 			{
 				"name": "order",
 				"label": "Order",
 				"type": "text",
 				"required": False,
-				"description": "State or province name. Do not include qualifiers (e.g. State, Province) to return better results"
+				"description": "Taxonomic order"
 			},
 			{
 				"name": "class",
 				"label": "Class",
 				"type": "text",
 				"required": False,
-				"description": 'Class name'
+				"description": 'Taxonomic class'
 			},
 			{
 				"name": "phylum",
 				"label": "Phylum",
 				"type": "text",
 				"required": False,
-				"description": "The specific locality where a specimen was recorded"
+				"description": "Taxonomic phylum"
 			},
 			{
 				"name": "kingdom",
 				"label": "Kingdom",
 				"type": "text",
 				"required": False,
-				"description": "The Longitude, Latitude to search on. Provide a comma separated string. IMPORTANT geoJSON requries LONGITUDE first."
+				"description": "Taxonomic kingdom"
 			},
 			{
 				"name": "other",
 				"label": "Other",
-				"type": "JSON",
+				"type": "text",
 				"required": False,
 				"description": "Other terms such as superFamily, 'above family' as well as a generic 'noRank' field"
 			},
