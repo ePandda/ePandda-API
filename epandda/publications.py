@@ -42,6 +42,7 @@ class publications(mongoBasedResource):
           limit = 100
 
         pubQuery = []
+	minScore = 0
         if self.paramCount > 0:
 
           criteria = {
@@ -101,6 +102,9 @@ class publications(mongoBasedResource):
               if 'article' == p:
                 article = str(params[p])
                 pubQuery.append({"index_term": { '$regex': re.compile(article, re.IGNORECASE)} })
+              
+              if 'minimumScore' == p:
+                minScore = params[p]
 
               criteria['parameters'][p] = str(params[p]).lower()
 
@@ -117,9 +121,9 @@ class publications(mongoBasedResource):
               if 'vetted' in i:
 
                 for idb in i['vetted']:
-                  
-                  matches['faceted_matches'].append({ 'pbdb_id': i['pid'], 'idigbio_uuid': idb['uuid'], 'matchedOn': idb['matched_on'], 'score': idb['score']}) 
-                  matches['idigbio'].append( idb['uuid'] )
+                  if idb['score'] > minScore: 
+                    matches['faceted_matches'].append({ 'pbdb_id': i['pid'], 'idigbio_uuid': idb['uuid'], 'matchedOn': idb['matched_on'], 'score': idb['score']}) 
+                    matches['idigbio'].append( idb['uuid'] )
 
               matches['pbdb'].append( i['pid'] )
 
@@ -252,4 +256,12 @@ class publications(mongoBasedResource):
                     "type": "boolean",
                     "required": False,
                     "description": "Toggles if OpenAnnotations section should be included or not"
-                }]}
+                },
+                {
+                    "name": "minimumScore",
+                    "label": "Minimum Score",
+                    "type": "integer",
+                    "required": False,
+                    "description": "The minimum score (number of fields) that potential iDigBio specimen matches must meet before being returned"
+                }
+                ]}

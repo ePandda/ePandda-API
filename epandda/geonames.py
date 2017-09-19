@@ -39,10 +39,14 @@ class geonames(mongoBasedResource):
 			criteria = {'endpoint': 'geoname', 'parameters': {}, 'matchPoints': [], 'matchTerms': {'stateProvinceNames': [], 'countryNames': [], 'countyNames': [], 'localityNames': [], 'originalStates': [], 'originalCountries': [], 'originalCounties': [], 'originalLocalities': []}}
 			geoQuery = []
 
-			for p in ['countryName', 'countryCode', 'locality', 'stateProvinceName', 'stateProvinceCode', 'county']:
-				if (params[p]):
-					criteria['parameters'][p] = params[p]
-					geoQuery.append({p: params[p]})
+			for p in [{'countryName': ['countryName', 'originalCountry']}, {'countryCode': ['countryCode']}, {'locality': ['originalLocality']}, {'stateProvinceName': ['stateProvinceName', 'originalStateProvince']}, {'stateProvinceCode': ['stateProvinceCode']}, {'county': ['county', 'originalCounty']}]:
+				val = p.keys()[0]
+				if (params[val]):
+					criteria['parameters'][val] = params[val]
+					geoSubQuery = {'$or': []}
+                    			for field in p[val]:
+                        			geoSubQuery['$or'].append({field: params[val]})
+                    			geoQuery.append(geoSubQuery)
 			
 			if(params['geolocation']):
 				criteria['parameters']['geolocation'] = params['geolocation']
