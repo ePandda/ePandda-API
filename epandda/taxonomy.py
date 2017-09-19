@@ -34,16 +34,14 @@ class taxonomy(mongoBasedResource):
 			res = None
 			criteria = {'endpoint': 'taxonomy', 'parameters': {}, 'matchTerms': {'scientificNames': []}}
 			taxonQuery = []
-			for p in [{'scientificName': ['scientificNames', 'originalScientificName']}, {'species': ['species', 'taxonomy.species']}, {'genus': ['genus', 'taxonomy.genus']}, {'family': ['family', 'taxonomy.family']}, {'order': ['order', 'taxonomy.order']}, {'class': ['class', 'taxonomy.class']}, {'family': ['family', 'taxonomy.family']}, {'phylum': ['phylum', 'taxonomy.phylum']}, {'kingdom': ['kingdom', 'taxonomy.kingdom']}, {'other': ['taxonomy.noRank']}]:
+			for p in [{'scientificName': ['scientificNames', 'originalScientificName']}, {'species': ['species', 'taxonomy.species']}, {'genus': ['genus', 'taxonomy.genus']}, {'family': ['family', 'taxonomy.family']}, {'order': ['order', 'taxonomy.order']}, {'class': ['class', 'taxonomy.class']}, {'phylum': ['phylum', 'taxonomy.phylum']}, {'kingdom': ['kingdom', 'taxonomy.kingdom']}, {'other': ['taxonomy.noRank']}]:
 				val = p.keys()[0]
 				if (params[val]):
 					criteria['parameters'][val] = params[val]
+					taxonSubQuery = {'$or': []}
 					for field in p[val]:
-						taxonQuery.append({field: params[val]})
-			#for p in ['scientificNames', 'species', 'genus', 'family', 'order', 'class', 'family', 'phylum', 'kingdom', 'other']:
-			#	if (params[p]):
-			#		criteria['parameters'][p] = params[p]
-			#		taxonQuery.append({p: params[p]})
+						taxonSubQuery['$or'].append({field: params[val]})
+					taxonQuery.append(taxonSubQuery)
 			
 			if(params['fullTaxonomy']):
 				criteria['parameters']['fullTaxonomy'] = params['fullTaxonomy']
