@@ -2,12 +2,51 @@ import re
 from mongo import mongoBasedResource
 
 #
+# Single Annotation View
 #
+
+class single(mongoBasedResource):
+
+  def process(self):
+    pass
+
+  def get(self, annotation_id):
+
+    # Mongodb index for Annotations
+    annotations = self.client.endpoints.annotations
+
+    annotation_id_string = "urn:uuid:" + str(annotation_id)
+    res = annotations.find({'@id': annotation_id_string}, {'_id': False})
+   
+    d = []
+    for i in res:
+      d.append(i)
+
+    return self.respond({
+      'counts': 1,
+      'results': d,
+      'criteria': {'annotation_uuid': annotation_id}
+    })
+
+  def description(self):
+        return {
+            'name': 'Single Annotation',
+            'maintainer': 'Jon Lauters',
+            'maintainer_email': 'jon@epandda.org',
+            'description': 'Returns single annotation. (ex: https://api.epandda.org/annotations/single/<uuid>)',
+            'params': []
+           
+        }
+
+
 #
+# Main Annotations Class Functionality
+#
+
 class annotations(mongoBasedResource):
     def process(self):
 
-        # Mongodb index for Publication
+        # Mongodb index for Annotations
         annotations = self.client.endpoints.annotations
   
         # returns dictionary of params as defined in endpoint description
@@ -29,7 +68,7 @@ class annotations(mongoBasedResource):
             'parameters': {},
           }
 
-          for p in ['annotationDate', 'annotationDateAfter', 'annotationDateBefore']:  
+          for p in ['annotationDate', 'annotationDateAfter', 'annotationDateBefore', 'quality_score']:  
  
             if params[p]:
 
@@ -40,8 +79,10 @@ class annotations(mongoBasedResource):
                 annoQuery.append({"annotatedAt": { '$gte': params[p]} }) 
             
               if 'annotationDateBefore' == p:
-                print "annotation Date Before: " + str(params[p])
                 annoQuery.append({"annotatedAt": { '$lte': params[p]} })
+
+              if 'quality_score' == p:
+                annoQuery.append({"quality_score": { '$gte': int(params[p]) }})
 
               criteria['parameters'][p] = str(params[p]).lower()
 
@@ -104,6 +145,13 @@ class annotations(mongoBasedResource):
                     "type": "text",
                     "required": False,
                     "description": "Filter annotation results before provided date. Format annotationDateBefore=YYYY-MM-DD"
+                },
+                {
+                   "name": "quality_score",
+                   "label": "Quality Score",
+                   "type": "text",
+                   "required": False,
+                   "description": "Filter annotation results equal to or greater than value"
                 }
             ]
         }
