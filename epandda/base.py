@@ -66,7 +66,7 @@ class baseResource(Resource):
         paleobio_fields = self.getFieldsForSource("paleobio", True)
 
         if "refs" == pbdb_type:
-          paleobio_fields = self.getFieldsForSource("paleobio_refs", True) 
+          paleobio_fields = self.getFieldsForSource("paleobio_refs", True)
 
         offset = self.offset()
         limit = self.limit()
@@ -103,7 +103,7 @@ class baseResource(Resource):
             idigbio_ids = idigbio_ids[offset:limit]
             pbdb_ids = pbdb_ids[offset:limit]
 
-        # Double limiting? 
+        # Double limiting?
         if not use_UUID:
             idigbio_ids = map(lambda id: ObjectId(id), idigbio_ids[0:limit])
             pbdb_ids = map(lambda id: ObjectId(id), pbdb_ids[0:limit])
@@ -130,7 +130,7 @@ class baseResource(Resource):
               for i in p:
                 pbdb_records[ int(i['pid']) ] = i
 
-            else: 
+            else:
               p = self.pbdb.find({"occurrence_no": {"$in" : pbdb_ids}})
               pbdb_records = {}
               for i in p:
@@ -162,7 +162,7 @@ class baseResource(Resource):
                 for f in paleobio_fields:
                     if f in pbdb_records[pbdbid]:
                         row[f] = pbdb_records[pbdbid][f]
-            
+
             resolved.append(row)
 
         resolved_references["pbdb_resolved"] = resolved
@@ -246,7 +246,7 @@ class baseResource(Resource):
         self.validateParams()
 
         self.paramCount = c
-        
+
         return self.params
 
     #
@@ -317,7 +317,7 @@ class baseResource(Resource):
     def limit(self):
         if self.params is None or self.params.get('limit') is None:
             self.getParams()
-        return 10 if self.params['limit'] is None else int(self.params['limit'])
+        return 50 if self.params['limit'] is None else int(self.params['limit'])
 
     #
     # Default description block for endpoints that don't describe themselves
@@ -506,7 +506,8 @@ class baseResource(Resource):
 
         # process errors, omitting ones not related to a parameter or GENERAL (the generic error heading)
         errors_filtered = {}
-
+        if type(errors) is int:
+            return {"errors": errors}
         for i in errors:
             if i == "GENERAL" or i in names:
                 if type(errors[i]) is list:
