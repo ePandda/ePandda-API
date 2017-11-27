@@ -25,8 +25,8 @@ class baseResource(Resource):
         # Load API config
         self.config = json.load(open('./config.json'))
 
-        self.client = MongoClient("mongodb://" + self.config['mongodb_user'] + ":" + self.config['mongodb_password'] + "@" + self.config['mongodb_host'])
-        #self.client = MongoClient("mongodb://127.0.0.1")
+        #self.client = MongoClient("mongodb://" + self.config['mongodb_user'] + ":" + self.config['mongodb_password'] + "@" + self.config['mongodb_host'])
+        self.client = MongoClient("mongodb://127.0.0.1")
         self.idigbio = self.client.idigbio.occurrence
         self.pbdb = self.client.pbdb.pbdb_occurrences
         self.refs = self.client.pbdb.pbdb_refs
@@ -156,7 +156,9 @@ class baseResource(Resource):
         for mitem in data:
 
           for pbdbid in pbdb_ids:
-            row = {"url": 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + str(pbdbid) + '&show=' + show_type }
+            # Old URL            
+            #row = {"url": 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + str(pbdbid) + '&show=' + show_type }
+            row = {"url": 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + str(pbdbid)}
 
             if paleobio_fields is not None:
                 for f in paleobio_fields:
@@ -478,7 +480,12 @@ class baseResource(Resource):
     #
     def loadEndpoint(self, endpoint):
         try:
+
             module = importlib.import_module("." + endpoint, "epandda")
+
+            print "module:"
+            print module
+
             for x in dir(module):
                 obj = getattr(module, x)
 
