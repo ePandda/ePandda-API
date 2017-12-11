@@ -149,9 +149,9 @@ class baseResource(Resource):
         resolved_references["idigbio_resolved"] = resolved
 
         # PBDB resolves to different URL's based on if occurrence or publication 
-        pbdb_url = 'https://paleobiodb.org/data1.2/' + pdbdb_type + '/single.json?id=' + str(pbdbid) + '&show=' + show_type
+        pbdb_url = 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + str(pbdb_id) + '&show=' + show_type
         if 'refs' == pbdb_type:
-          pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + str(pbdbid)
+          pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + str(pbdb_id)
 
         resolved = []
         for mitem in data:
