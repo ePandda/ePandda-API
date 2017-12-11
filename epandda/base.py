@@ -25,8 +25,8 @@ class baseResource(Resource):
         # Load API config
         self.config = json.load(open('./config.json'))
 
-        #self.client = MongoClient("mongodb://" + self.config['mongodb_user'] + ":" + self.config['mongodb_password'] + "@" + self.config['mongodb_host'])
-        self.client = MongoClient("mongodb://127.0.0.1")
+        self.client = MongoClient("mongodb://" + self.config['mongodb_user'] + ":" + self.config['mongodb_password'] + "@" + self.config['mongodb_host'])
+        #self.client = MongoClient("mongodb://127.0.0.1")
         self.idigbio = self.client.idigbio.occurrence
         self.pbdb = self.client.pbdb.pbdb_occurrences
         self.refs = self.client.pbdb.pbdb_refs
@@ -123,7 +123,6 @@ class baseResource(Resource):
 
             if "refs" == pbdb_type:
 
-              print "making refs query"
               pbdb_ids_str = [ str(pbdb_id) for pbdb_id in pbdb_ids ]
               p = self.refs.find({"pid": {"$in": pbdb_ids_str}}, {"_id": False})
               pbdb_records = {}
@@ -149,16 +148,16 @@ class baseResource(Resource):
 
         resolved_references["idigbio_resolved"] = resolved
 
+        # PBDB resolves to different URL's based on if occurrence or publication 
+        pbdb_url = 'https://paleobiodb.org/data1.2/' + pdbdb_type + '/single.json?id=' + str(pbdbid) + '&show=' + show_type
         if 'refs' == pbdb_type:
-          show_type = 'both'
+          pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + str(pbdbid)
 
         resolved = []
         for mitem in data:
 
           for pbdbid in pbdb_ids:
-            # Old URL            
-            #row = {"url": 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + str(pbdbid) + '&show=' + show_type }
-            row = {"url": 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + str(pbdbid)}
+            row = {"url": pbdb_url}
 
             if paleobio_fields is not None:
                 for f in paleobio_fields:
