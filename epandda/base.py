@@ -25,12 +25,12 @@ class baseResource(Resource):
         # Load API config
         self.config = json.load(open('./config.json'))
 
-        self.client = MongoClient("mongodb://" + self.config['mongodb_user'] + ":" + self.config['mongodb_password'] + "@" + self.config['mongodb_host'])
-        #self.client = MongoClient("mongodb://127.0.0.1")
+        #self.client = MongoClient("mongodb://" + self.config['mongodb_user'] + ":" + self.config['mongodb_password'] + "@" + self.config['mongodb_host'])
+        self.client = MongoClient("mongodb://127.0.0.1")
         self.idigbio = self.client.idigbio.occurrence
         self.pbdb = self.client.pbdb.pbdb_occurrences
         self.refs = self.client.pbdb.pbdb_refs
-        self.annotations = self.client.endpoints.annotations
+        self.annotations = self.client.test.annotations
 
 
         self.params = None
@@ -139,11 +139,11 @@ class baseResource(Resource):
         for idb_uuid in idigbio_ids:
             row = {"uuid": str(idb_uuid), "url": "https://www.idigbio.org/portal/records/" + str(idb_uuid)}
 
-            if idigbio_fields is not None:
-                for f in idigbio_fields:
-                	if idb_uuid in idigbio_records:
-                		if f in idigbio_records[idb_uuid]:
-                			row[f] = idigbio_records[idb_uuid][f]
+            #if idigbio_fields is not None:
+            #    for f in idigbio_fields:
+            #    	if idb_uuid in idigbio_records:
+            #    		if f in idigbio_records[idb_uuid]:
+            #    			row[f] = idigbio_records[idb_uuid][f]
             resolved.append(row)
 
         resolved_references["idigbio_resolved"] = resolved
@@ -159,10 +159,10 @@ class baseResource(Resource):
           for pbdbid in pbdb_ids:
             row = {"url": pbdb_url}
 
-            if paleobio_fields is not None:
-                for f in paleobio_fields:
-                    if f in pbdb_records[pbdbid]:
-                        row[f] = pbdb_records[pbdbid][f]
+            #if paleobio_fields is not None:
+            #    for f in paleobio_fields:
+            #        if f in pbdb_records[pbdbid]:
+            #            row[f] = pbdb_records[pbdbid][f]
             
             resolved.append(row)
 
@@ -179,7 +179,7 @@ class baseResource(Resource):
         if "offset" not in data:
             data["offset"] = 0
         if "limit" not in data:
-            data["limit"] = 10
+            data["limit"] = 100
 
         for p in desc:
             if p["name"] not in data:
@@ -481,10 +481,6 @@ class baseResource(Resource):
         try:
 
             module = importlib.import_module("." + endpoint, "epandda")
-
-            print "module:"
-            print module
-
             for x in dir(module):
                 obj = getattr(module, x)
 
