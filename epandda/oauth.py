@@ -35,8 +35,8 @@ class oauth(mongoBasedResource):
           'client_id': client_id,
           'client_secret': client_secret,
           'grant_type': 'authorization_code',
+          'redirect_uri': redirect_url,
           'code': code,
-          'redirect_uri': redirect_url
         })
         orcid_url = "https://orcid.org/oauth/token"
 
@@ -79,6 +79,13 @@ class oauth(mongoBasedResource):
             'maintainer_email': 'jon@epandda.org',
             'description': 'oauth callback',
             'params': [
+                {
+                    "name": "code",
+                    "label": "Authentication Code",
+                    "type": "text",
+                    "required": False,
+                    "description": "Authentication Code to pass to ORCid oAuth to get access_token"
+                }
             ]
         }
                 
