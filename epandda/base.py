@@ -58,6 +58,31 @@ class baseResource(Resource):
     #
     # Resolve underlying data source ids (from iDigBio, PBDB, Etc.) to URLs the end-user can use
     #
+
+    def resolveReference(self, record, record_id, record_type, pbdb_type='occs', show_type='full'):
+        idigbio_fields = self.getFieldsForSource("idigbio", True)
+        paleobio_fields = self.getFieldsForSource("paleobio", True)
+
+        if "refs" == pbdb_type:
+            paleobio_fields = self.getFieldsForSource("paleobio_refs", True)
+
+        if record_type == 'idigbio':
+            row = {"uuid": record_id, "url": "https://www.idigbio.org/portal/records/" + record_id}
+
+            if idigbio_fields is not None:
+                for f in idigbio_fields:
+                    if f in record:
+                		row[f] = record[f]
+        elif record_type == 'pbdb':
+            row = {"url": 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + record_id + '&show=' + show_type }
+
+            if idigbio_fields is not None:
+                if paleobio_fields is not None:
+                    for f in paleobio_fields:
+                        if f in record:
+                            row[f] = record[f]
+        return row
+
     def resolveReferences(self, data, pbdb_type='occs', show_type='full'):
 
         resolved_references = {"idigbio_resolved" : [], "pbdb_resolved": [] }

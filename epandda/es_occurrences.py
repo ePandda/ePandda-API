@@ -20,7 +20,7 @@ class es_occurrences(mongoBasedResource):
 	def process(self):
 
 		# We use Elasticsearch to do matching
-		es = Elasticsearch(['http://whirl.mine.nu:9200'])
+		es = Elasticsearch(['http://whirl.mine.nu:9200'], timeout=30)
 		# returns dictionary of params as defined in endpoint description
 		# will throw exception if required param is not present
 		params = self.getParams()
@@ -38,15 +38,19 @@ class es_occurrences(mongoBasedResource):
 		if self.paramCount > 0:
 			res = None
 			query = {
-				"from": offset,
 				"size": limit,
 				"query":{
 					"bool":{
 						"should":[]
 					}
-				}
+				},
+				"sort": [
+					"_score",
+					"_doc"
+				]
 			}
-
+			if params['searchFrom']:
+				query['search_after'] = json.loads(params['searchFrom'])
 			# Parse the search term parameter and get the initial result from ES
 			if not params['terms']:
 				return {"ERROR": "You must provide at least one field:term pair"}
@@ -70,7 +74,6 @@ class es_occurrences(mongoBasedResource):
 					query['query']['bool']['filter'] = {'geo_distance': {'distance': matchRadius, field: term}}
 					continue
 				query['query']['bool']['should'].append({"match": {field: term}})
-
 			if len(query['query']['bool']['should']) == 0:
 				query['query']['bool']['should'] = {'match_all': {}}
 			res = es.search(index="endpoint", body=query)
@@ -103,18 +106,19 @@ class es_occurrences(mongoBasedResource):
 					data = {'sourceRecords': [], 'links': [], 'matchFields': {}}
 					matchList = []
 					if hit['_type'] == 'idigbio':
-
 						# Store the primary ID
 						linkID = hit['_source']['idigbio:uuid']
 						linkField= 'idigbio:uuid'
 
-						matchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['idigbio']]}})
-						data['matchFields'][localityMatch['idigbio']] = hit['_source'][localityMatch['idigbio']]
-						recHash.update(data['matchFields'][localityMatch['idigbio']])
+						if hit['_source'][localityMatch['idigbio']] is not None:
+							matchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['idigbio']]}})
+							data['matchFields'][localityMatch['idigbio']] = hit['_source'][localityMatch['idigbio']]
+							recHash.update(data['matchFields'][localityMatch['idigbio']])
 
-						matchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['idigbio']]}})
-						data['matchFields'][taxonMatch['idigbio']] = hit['_source'][taxonMatch['idigbio']]
-						recHash.update(data['matchFields'][taxonMatch['idigbio']])
+						if hit['_source'][taxonMatch['idigbio']] is not None:
+							matchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['idigbio']]}})
+							data['matchFields'][taxonMatch['idigbio']] = hit['_source'][taxonMatch['idigbio']]
+							recHash.update(data['matchFields'][taxonMatch['idigbio']])
 
 						chrono_early = chrono_late = None
 						ma_start_score = ma_end_score = 0
@@ -146,7 +150,7 @@ class es_occurrences(mongoBasedResource):
 						recHash.update(str(ma_start)+str(ma_end))
 
 						linkQuery = {
-							"size": 1000,
+							"size": 100,
 							"query":{
 								"bool":{
 									"must": matchList
@@ -175,7 +179,7 @@ class es_occurrences(mongoBasedResource):
 						linkID = hit['_source']['occurrence_no']
 						linkField = 'occurrence_no'
 						linkQuery = {
-							"size": 1000,
+							"size": 100,
 							"query":{
 								"bool":{
 									"must": matchList,
@@ -192,23 +196,41 @@ class es_occurrences(mongoBasedResource):
 								}
 							}
 						}
-					linkResult = es.search(index="endpoint", body=linkQuery)
-					for link in linkResult['hits']['hits']:
-						if hit['_type'] == 'idigbio':
-							data['links'].append([link['_source']['occurrence_no'], link['_score']])
-						elif hit['_type'] == 'pbdb':
-							data['links'].append([link['_source']['idigbio:uuid'], link['_score']])
+					linkQuery['sort'] = ["_score", "_doc"]
+					matches['search_after'] = json.dumps(hit["sort"])
 					hashRes = recHash.hexdigest()
+
 					if hashRes in matches:
-						matches[hashRes]['sources'].append(linkID)
+						print "Found existing match"
+						sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"])
+						matches[hashRes]['sources'].append(sourceRow)
 						for link in data['links']:
 							if {link[0]: link[1]} not in matches[hashRes]['matches']:
 								matches[hashRes]['matches'].append({link[0]: link[1]})
 					else:
-						matches[hashRes] = {'fields': data['matchFields'], 'matches': [], 'sources': [linkID]}
-						for link in data['links']:
-							matches[hashRes]['matches'].append({link[0]: link[1]})
+						print "Creating new match"
+						sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"])
+						matches[hashRes] = {'fields': data['matchFields'], 'totalMatches': 0, 'matches': [], 'sources': [sourceRow]}
+
+						linkResult = es.search(index="endpoint", body=linkQuery)
+						matchCount = 0
+						totalMatches = linkResult['hits']['total']
+
+						while matchCount < totalMatches:
+							if matchCount > 0:
+								linkResult = es.search(index="endpoint", body=linkQuery)
+							for link in linkResult['hits']['hits']:
+								row = self.resolveReference(link['_source'], link['_id'], link['_type'])
+								row['score'] = link['_score']
+								row['type'] = link['_type']
+								matches[hashRes]['matches'].append(row)
+								data['links'].append([link['_id'], link['_score'], link['_type']])
+								searchAfter = link['sort']
+							linkQuery['search_after'] = searchAfter
+							matchCount += 1
+						matches[hashRes]['totalMatches'] = matchCount
 						matches[hashRes]['fields'] = data['matchFields']
+
 				return matches
 		else:
 			return self.respondWithDescription()
@@ -261,5 +283,12 @@ class es_occurrences(mongoBasedResource):
 					"type": "integer",
 					"required": False,
 					"description": "The maximum radius, in km, to return results within if querying on a geoPoint field"
+				},
+				{
+					"name": "searchFrom",
+					"label": "Last returned record to search from",
+					"type": "text",
+					"required": False,
+					"description": "This implements paging in a more effecient way in ElasticSearch. It should be provided the last return search result in order to request a subsequent page of search results"
 				}
 			]}
