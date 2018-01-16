@@ -33,7 +33,7 @@ class es_occurrences(mongoBasedResource):
 		'locality': 'dwc:locality', 'county': 'dwc:county', 'state': 'dwc:stateProvince', 'country': 'dwc:country'}
 
 		# There are a few PBDB edge cases too
-		pbdbReplacements = {'scientificName': 'accepted_name'}
+		pbdbReplacements = {'scientificname': 'accepted_name'}
 
 		if self.paramCount > 0:
 			res = None
@@ -76,7 +76,7 @@ class es_occurrences(mongoBasedResource):
 				query['query']['bool']['should'].append({"match": {field: term}})
 			if len(query['query']['bool']['should']) == 0:
 				query['query']['bool']['should'] = {'match_all': {}}
-			res = es.search(index="endpoint", body=query)
+			res = es.search(index="pbdb,idigbio", body=query)
 			# Get the fields to match on
 			matches = {}
 			localityMatch = {'idigbio': 'dwc:county', 'pbdb': 'county'}
@@ -113,7 +113,7 @@ class es_occurrences(mongoBasedResource):
 						if hit['_source'][localityMatch['idigbio']] is not None:
 							matchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['idigbio']]}})
 							data['matchFields'][localityMatch['idigbio']] = hit['_source'][localityMatch['idigbio']]
-							recHash.update(data['matchFields'][localityMatch['idigbio']])
+							recHash.update(data['matchFields'][localityMatch['idigbio']].encode('utf-8'))
 
 						if hit['_source'][taxonMatch['idigbio']] is not None:
 							matchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['idigbio']]}})
@@ -157,16 +157,16 @@ class es_occurrences(mongoBasedResource):
 								}
 							}
 						}
+						queryIndex = 'pbdb'
 					elif hit['_type'] == 'pbdb':
-
-						matchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['pbdb']]}})
-						data['matchFields'][localityMatch['pbdb']] = hit['_source'][localityMatch['pbdb']]
-						recHash.update(data['matchFields'][localityMatch['pbdb']])
-
-						matchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['pbdb']]}})
-						data['matchFields'][taxonMatch['pbdb']] = hit['_source'][taxonMatch['pbdb']]
-						recHash.update(data['matchFields'][taxonMatch['pbdb']])
-
+						if hit['_source'][localityMatch['pbdb']] is not None:
+							matchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['pbdb']]}})
+							data['matchFields'][localityMatch['pbdb']] = hit['_source'][localityMatch['pbdb']]
+							recHash.update(data['matchFields'][localityMatch['pbdb']].encode('utf-8'))
+						if hit['_source'][taxonMatch['pbdb']] is not None:
+							matchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['pbdb']]}})
+							data['matchFields'][taxonMatch['pbdb']] = hit['_source'][taxonMatch['pbdb']]
+							recHash.update(data['matchFields'][taxonMatch['pbdb']])
 						matchChrono = []
 						ma_start_res = es.search(index="chronolookup", body={"query": {"match": {"start_ma": {"query": hit['_source']['min_ma']}}}})
 						for ma_start_hit in ma_start_res['hits']['hits']:
@@ -196,29 +196,28 @@ class es_occurrences(mongoBasedResource):
 								}
 							}
 						}
+						queryIndex = 'idigbio'
 					linkQuery['sort'] = ["_score", "_doc"]
 					matches['search_after'] = json.dumps(hit["sort"])
 					hashRes = recHash.hexdigest()
 
 					if hashRes in matches:
-						print "Found existing match"
 						sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"])
 						matches[hashRes]['sources'].append(sourceRow)
 						for link in data['links']:
 							if {link[0]: link[1]} not in matches[hashRes]['matches']:
 								matches[hashRes]['matches'].append({link[0]: link[1]})
 					else:
-						print "Creating new match"
 						sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"])
 						matches[hashRes] = {'fields': data['matchFields'], 'totalMatches': 0, 'matches': [], 'sources': [sourceRow]}
 
-						linkResult = es.search(index="endpoint", body=linkQuery)
+						linkResult = es.search(index=queryIndex, body=linkQuery)
 						matchCount = 0
 						totalMatches = linkResult['hits']['total']
 
 						while matchCount < totalMatches:
 							if matchCount > 0:
-								linkResult = es.search(index="endpoint", body=linkQuery)
+								linkResult = es.search(index=queryIndex, body=linkQuery)
 							for link in linkResult['hits']['hits']:
 								row = self.resolveReference(link['_source'], link['_id'], link['_type'])
 								row['score'] = link['_score']
