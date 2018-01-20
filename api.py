@@ -22,6 +22,7 @@ from epandda import bugReport
 from epandda import lithostratigraphy
 from epandda import annotations
 from epandda import es_occurrences
+from epandda import full_match_results
 
 from flask_cors import CORS, cross_origin
 import sys
@@ -55,6 +56,7 @@ api.add_resource(bugReport.bugReport, '/bugReport')
 api.add_resource(lithostratigraphy.lithostratigraphy, '/lithostratigraphy')
 api.add_resource(annotations.annotations, '/annotations')
 api.add_resource(es_occurrences.es_occurrences, '/es_occurrences')
+api.add_resource(full_match_results.full_match_results, '/full_match_results')
 
 if __name__ == '__main__':
   app.run()

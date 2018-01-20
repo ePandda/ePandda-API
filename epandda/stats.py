@@ -5,48 +5,51 @@ from base import baseResource
 #
 class stats(baseResource):
     def process(self):
-        
+
         localityFields = {'localities': 'originalLocality', 'counties': 'county', 'stateProvinces': 'stateProvinceName', 'countries': 'countryName'}
         # Get any supplied parameters
-        # There are no required parameters at this time 
+        # There are no required parameters at this time
         params = self.getParams()
         if self.paramCount > 0:
             criteria = {'endpoint': 'stats', 'parameters': []}
-            pbdb = self.client.pbdb
-            idb = self.client.idigbio
-            endpoints = self.client.endpoints
             response = {}
             if params['totalRecords']:
-                pbdbIndex = pbdb.pbdb_occurrences
-                idbIndex = idb.occurrence
-                pbdbCount = pbdbIndex.find().count()
-                idbCount = idbIndex.find().count()
+                totalQuery = {
+                    "size": 0,
+                    "query": {
+                        "match_all": {}
+                    }
+                }
+                idigbioRes = self.es.search(index="idigbio", body=totalQuery)
+                pbdbRes = self.es.search(index="pbdb", body=totalQuery)
+                idbCount = idigbioRes['hits']['total']
+                pbdbCount = pbdbRes['hits']['total']
                 totalCount = pbdbCount + idbCount
                 criteria['parameters'].append('totalRecords')
                 response['totalRecords'] = totalCount
                 response['specimens'] = idbCount
                 response['occurrences'] = pbdbCount
-           
-            localityIndex = endpoints.localityIndex
-            for place in ['countries', 'stateProvinces', 'counties', 'localities']:
-            	if params[place]:
-            		placeTerm = localityFields[place]
-            		#placeCount = len(list(localityIndex.aggregate([{'$group': {'_id': {'localities': '$' + placeTerm}}}])))
-                	placeCount = localityIndex.count()
-                	criteria['parameters'].append(place)
-                	response[place] = placeCount
 
-            if params['geoPoints']:
-                geoPointIndex = endpoints.geoPointIndex
-                geoCount = geoPointIndex.find().count()
-                criteria['parameters'].append('geoPoints')
-                response['geoPoints'] = geoCount
-           		
-            if params['taxonomies']:
-                taxonIndex = endpoints.taxonIndex
-                taxonCount = taxonIndex.find().count()
-                criteria['parameters'].append('taxonomies')
-                response['taxonomies'] = taxonCount
+            #localityIndex = endpoints.localityIndex
+            #for place in ['countries', 'stateProvinces', 'counties', 'localities']:
+            #	if params[place]:
+            #		placeTerm = localityFields[place]
+            #		#placeCount = len(list(localityIndex.aggregate([{'$group': {'_id': {'localities': '$' + placeTerm}}}])))
+            #    	placeCount = localityIndex.count()
+            #    	criteria['parameters'].append(place)
+            #    	response[place] = placeCount
+
+            #if params['geoPoints']:
+            #    geoPointIndex = endpoints.geoPointIndex
+            #    geoCount = geoPointIndex.find().count()
+            #    criteria['parameters'].append('geoPoints')
+            #    response['geoPoints'] = geoCount
+
+            #if params['taxonomies']:
+            #    taxonIndex = endpoints.taxonIndex
+            #    taxonCount = taxonIndex.find().count()
+            #    criteria['parameters'].append('taxonomies')
+            #    response['taxonomies'] = taxonCount
         else:
           return self.respondWithDescription()
         # Indexes for querying stats from
