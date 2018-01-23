@@ -15,12 +15,33 @@ class full_match_results(mongoBasedResource):
     def process(self):
         # returns dictionary of params as defined in endpoint description
         # will throw exception if required param is not present
+
+        idigbioUCList = {'dwc:scientificname': 'dwc:scientificName', 'dwc:stateprovince': 'dwc:stateProvince', 'dwc:earliestageorloweststage': 'dwc:earliestAgeOrLowestStage', 'dwc:latestageorhigheststage': 'dwc:latestAgeOrHighestStage', 'dwc:earliestperiodorlowestsystem': 'dwc:earliestPeriodOrLowestSystem', 'dwc:latestperiodorhighestsystem': 'dwc:latestPeriodOrHighestSystem', 'dwc:earliestepochorlowestseries': 'dwc:earliestEpochOrLowestSeries', 'dwc:latestepochorhighestseries': 'dwc:latestEpochOrHighestSeries', 'dwc:earliesteraorlowesterathem': 'dwc:earliestEraOrLowestErathem', 'dwc:latestEraOrHighestErathem': 'dwc:latestEraOrHighestErathem'}
+
         params = self.getParams()
         if self.paramCount > 0:
             if params['matchQuery']:
-                query = json.loads(params['matchQuery'])
+                query = json.loads(params['matchQuery'].decode('string-escape').strip('"'))
             elif params['sourceQuery']:
-                query = json.loads(params['sourceQuery'])
+                query = json.loads(params['sourceQuery'].decode('string-escape').strip('"'))
+            if "should" in query["query"]["bool"]:
+                shouldList = query["query"]["bool"]["should"]
+            else:
+                shouldList = []
+            mustList = query["query"]["bool"]["must"]
+            for esList in [[shouldList, 'should'], [mustList, 'must']]:
+                newList = []
+                print esList[0]
+                for esField in esList[0]:
+                    for field in esField:
+                        for term in esField[field]:
+                            value = esField[field][term]
+                            if term in idigbioUCList:
+                                esField[field] = {idigbioUCList[term]: value}
+                                newList.append(esField)
+                            else:
+                                newList.append(esField)
+                query['query']['bool'][esList[1]] = newList
 
             res = self.es.search(index="idigbio,pbdb", body=query)
             results = {"results": [], "total": res['hits']['total'], "query": query}

@@ -344,7 +344,7 @@ class baseResource(Resource):
     def limit(self):
         if self.params is None or self.params.get('limit') is None:
             self.getParams()
-        return 25 if self.params['limit'] is None else int(self.params['limit'])
+        return 10 if self.params['limit'] is None else int(self.params['limit'])
 
     #
     # Default description block for endpoints that don't describe themselves

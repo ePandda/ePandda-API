@@ -113,15 +113,24 @@ class es_occurrences(mongoBasedResource):
 				localityMatch['idigbio'] = 'dwc:' + params['localityMatchLevel']
 				if params['localityMatchLevel'] == 'state':
 					localityMatch['idigbio'] = localityMatch['idigbio'] + 'Province'
+				elif params['localityMatchLevel'] == 'country':
+					localityMatch['pbdb'] = 'cc1'
 
 			taxonMatch = {'idigbio': 'dwc:genus', 'pbdb': 'genus'}
 			if params['taxonMatchLevel']:
-				localityMatch['pbdb'] = params['taxonMatchLevel']
-				localityMatch['idigbio'] = 'dwc:' + params['taxonMatchLevel']
+				if params['taxonMatchLevel'] in idigbioReplacements:
+					taxonMatch['idigbio'] = idigbioReplacements[params['taxonMatchLevel']]
+				else:
+					taxonMatch['idigbio'] = 'dwc:' + params['taxonMatchLevel']
+				if params['taxonMatchLevel'] in pbdbReplacements:
+					taxonMatch['pbdb'] = pbdbReplacements[params['taxonMatchLevel']]
+				else:
+					taxonMatch['pbdb'] = params['taxonMatchLevel']
 
 			# PBDB uses numeric min/max ma so we don't have to worry about that here
 			chronoMatch = {'idigbio': {'early': 'dwc:earliestPeriodOrLowestSystem', 'late': 'dwc:latestPeriodOrHighestSystem'}}
 			if params['chronoMatchLevel']:
+				print "Changing Chrono match"
 				if params['chronoMatchLevel'] == 'stage':
 					chronoMatch = {'idigbio': {'early': 'dwc:earliestAgeOrLowestStage', 'late': 'dwc:latestAgeOrHighestStage'}}
 				elif params['chronoMatchLevel'] == 'series':
@@ -135,6 +144,7 @@ class es_occurrences(mongoBasedResource):
 						data = {'sourceRecords': [], 'links': [], 'matchFields': {}}
 						idbMatchList = []
 						pbdbMatchList = []
+						noMatch = False
 						if hit['_type'] == 'idigbio':
 							# Store the primary ID
 							linkID = hit['_source']['idigbio:uuid']
@@ -145,12 +155,16 @@ class es_occurrences(mongoBasedResource):
 								idbMatchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['idigbio']]}})
 								data['matchFields'][localityMatch['idigbio']] = hit['_source'][localityMatch['idigbio']]
 								recHash.update(data['matchFields'][localityMatch['idigbio']].encode('utf-8'))
+							else:
+								noMatch = True
 
-							if hit['_source'][taxonMatch['idigbio']] is not None:
+							if hit['_source'][taxonMatch['idigbio']] is None:
 								pbdbMatchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['idigbio']]}})
 								idbMatchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['idigbio']]}})
 								data['matchFields'][taxonMatch['idigbio']] = hit['_source'][taxonMatch['idigbio']]
 								recHash.update(data['matchFields'][taxonMatch['idigbio']])
+							else:
+								noMatch = True
 
 							chrono_early = chrono_late = None
 							ma_start_score = ma_end_score = 0
@@ -171,6 +185,8 @@ class es_occurrences(mongoBasedResource):
 								chrono_late = hit['_source'][chronoMatch['idigbio']['late']]
 								idbMatchList.append({"match": {chronoMatch['idigbio']['early']: hit['_source'][chronoMatch['idigbio']['late']]}})
 								idbMatchList.append({"match": {chronoMatch['idigbio']['late']: hit['_source'][chronoMatch['idigbio']['late']]}})
+							else:
+								noMatch = True
 							if chrono_early and chrono_late:
 								ma_start_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": {"query": chrono_early, "fuzziness": "AUTO"}}}})
 								for ma_start_hit in ma_start_res['hits']['hits']:
@@ -202,11 +218,17 @@ class es_occurrences(mongoBasedResource):
 								pbdbMatchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['pbdb']]}})
 								data['matchFields'][localityMatch['pbdb']] = hit['_source'][localityMatch['pbdb']]
 								recHash.update(data['matchFields'][localityMatch['pbdb']].encode('utf-8'))
+							else:
+								noMatch = True
+
 							if hit['_source'][taxonMatch['pbdb']] is not None:
 								idbMatchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['pbdb']]}})
 								pbdbMatchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['pbdb']]}})
 								data['matchFields'][taxonMatch['pbdb']] = hit['_source'][taxonMatch['pbdb']]
 								recHash.update(data['matchFields'][taxonMatch['pbdb']])
+							else:
+								noMatch = True
+
 							matchChrono = []
 							ma_start_res = self.es.search(index="chronolookup", body={"query": {"match": {"start_ma": {"query": hit['_source']['min_ma']}}}})
 							for ma_start_hit in ma_start_res['hits']['hits']:
@@ -215,6 +237,8 @@ class es_occurrences(mongoBasedResource):
 							for ma_end_hit in ma_end_res['hits']['hits']:
 								matchChrono.append(ma_end_hit['_source']['name'])
 							data['matchFields']['chronostratigraphy'] = matchChrono
+							if not matchChrono:
+								noMatch = True
 							pbdbMatchList.append({"range": {"min_ma": {"lte": hit['_source']['min_ma']}}})
 							pbdbMatchList.append({"range": {"max_ma": {"gte": hit['_source']['max_ma']}}})
 							recHash.update(str(matchChrono))
@@ -226,14 +250,8 @@ class es_occurrences(mongoBasedResource):
 									"bool":{
 										"must": idbMatchList,
 										"should": [
-											{"terms": {"dwc:earliestAgeOrLowestStage": matchChrono}},
-											{"terms": {"dwc:latestAgeOrHighestStage": matchChrono}},
-											{"terms": {"dwc:earliestPeriodOrLowestSystem": matchChrono}},
-											{"terms": {"dwc:latestPeriodOrHighestSystem": matchChrono}},
-											{"terms": {"dwc:earliestEpochOrLowestSeries": matchChrono}},
-											{"terms": {"dwc:latestEpochOrHighestSeries": matchChrono}},
-											{"terms": {"dwc:earliestEraOrLowestErathem": matchChrono}},
-											{"terms": {"dwc:latestEraOrHighestErathem": matchChrono}}
+											{"terms": {chronoMatch['idigbio']['early']: matchChrono}},
+											{"terms": {chronoMatch['idigbio']['late']: matchChrono}},
 										]
 									}
 								}
@@ -248,22 +266,27 @@ class es_occurrences(mongoBasedResource):
 						else:
 							sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"])
 							matches['results'][hashRes] = {'fields': data['matchFields'], 'totalMatches': 0, 'matches': [], 'sources': [sourceRow]}
-
-							linkResult = self.es.search(index=queryIndex, body=linkQuery)
-							matchCount = 0
-							totalMatches = linkResult['hits']['total']
-
-							if matchCount > 0:
+							if noMatch is False:
 								linkResult = self.es.search(index=queryIndex, body=linkQuery)
-							for link in linkResult['hits']['hits']:
-								row = self.resolveReference(link['_source'], link['_id'], link['_type'])
-								row['score'] = link['_score']
-								row['type'] = link['_type']
-								matches['results'][hashRes]['matches'].append(row)
-								data['links'].append([link['_id'], link['_score'], link['_type']])
-							matches['results'][hashRes]['totalMatches'] = totalMatches
-							linkQuery['size'] = totalMatches
-							matches['results'][hashRes]['fullMatchQuery'] = json.dumps(linkQuery)
+								matchCount = 0
+								totalMatches = linkResult['hits']['total']
+
+								if matchCount > 0:
+									linkResult = self.es.search(index=queryIndex, body=linkQuery)
+								for link in linkResult['hits']['hits']:
+									row = self.resolveReference(link['_source'], link['_id'], link['_type'])
+									row['score'] = link['_score']
+									row['type'] = link['_type']
+									matches['results'][hashRes]['matches'].append(row)
+									data['links'].append([link['_id'], link['_score'], link['_type']])
+								matches['results'][hashRes]['totalMatches'] = totalMatches
+								linkQuery['size'] = totalMatches
+								matches['results'][hashRes]['fullMatchQuery'] = json.dumps(linkQuery)
+								matches['results'][hashRes]['fields'] = data['matchFields']
+							else:
+								matches['results'][hashRes]['matches'] = None
+								matches['results'][hashRes]['fullMatchQuery'] = None
+								matches['results'][hashRes]['totalMatches'] = None
 							if queryIndex == 'idigbio':
 								sourceQuery = {
 									"query":{
@@ -282,7 +305,7 @@ class es_occurrences(mongoBasedResource):
 									}
 								}
 							matches['results'][hashRes]['fullSourceQuery'] = json.dumps(sourceQuery)
-							matches['results'][hashRes]['fields'] = data['matchFields']
+
 						if hit["_type"] == 'idigbio':
 							sourceType = 'idigbio'
 							matchType = 'pbdb'
