@@ -2,6 +2,7 @@ from flask import request, Response
 from flask_restful import Resource, Api
 import json
 from pymongo import MongoClient
+from elasticsearch import Elasticsearch
 from bson import Binary, Code, json_util, BSON, ObjectId
 from bson.json_util import dumps
 import datetime
@@ -26,6 +27,7 @@ class baseResource(Resource):
         self.config = json.load(open('./config.json'))
 
         self.client = MongoClient("mongodb://" + self.config['mongodb_user'] + ":" + self.config['mongodb_password'] + "@" + self.config['mongodb_host'])
+        self.es = Elasticsearch(['http://whirl.mine.nu:9200'], timeout=30)
         #self.client = MongoClient("mongodb://127.0.0.1")
         self.idigbio = self.client.idigbio.occurrence
         self.pbdb = self.client.pbdb.pbdb_occurrences
@@ -58,6 +60,31 @@ class baseResource(Resource):
     #
     # Resolve underlying data source ids (from iDigBio, PBDB, Etc.) to URLs the end-user can use
     #
+
+    def resolveReference(self, record, record_id, record_type, pbdb_type='occs', show_type='full'):
+        idigbio_fields = self.getFieldsForSource("idigbio", True)
+        paleobio_fields = self.getFieldsForSource("paleobio", True)
+
+        if "refs" == pbdb_type:
+            paleobio_fields = self.getFieldsForSource("paleobio_refs", True)
+
+        if record_type == 'idigbio':
+            row = {"uuid": record_id, "url": "https://www.idigbio.org/portal/records/" + record_id}
+
+            if idigbio_fields is not None:
+                for f in idigbio_fields:
+                    if f in record:
+                		row[f] = record[f]
+        elif record_type == 'pbdb':
+            row = {"url": 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + record_id + '&show=' + show_type }
+
+            if idigbio_fields is not None:
+                if paleobio_fields is not None:
+                    for f in paleobio_fields:
+                        if f in record:
+                            row[f] = record[f]
+        return row
+
     def resolveReferences(self, data, pbdb_type='occs', show_type='full'):
 
         resolved_references = {"idigbio_resolved" : [], "pbdb_resolved": [] }
@@ -320,7 +347,7 @@ class baseResource(Resource):
     def limit(self):
         if self.params is None or self.params.get('limit') is None:
             self.getParams()
-        return 50 if self.params['limit'] is None else int(self.params['limit'])
+        return 10 if self.params['limit'] is None else int(self.params['limit'])
 
     #
     # Default description block for endpoints that don't describe themselves
