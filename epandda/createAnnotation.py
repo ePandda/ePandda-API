@@ -73,28 +73,33 @@ class create(mongoBasedResource):
           print "TEST orcid ( mine ): "
           print orcid
 
-          bio_url = 'https://api.sandbox.orcid.org/v2.1/' + str(orcid) + '/person'
+          bio_url = 'https://pub.orcid.org/v2.1/' + str(orcid) + '/person'
           bio_r = requests.get(bio_url, headers={"Content-Type": "application/orcid+json", "Authorization": "Bearer " + access_token})
-
-          bio_results = bio_r.json()
 
 
           print "ORCID User Bio Results: "
+          bio_results = bio_r.json()
           print bio_results
 
 
+          # TODO: email address is not always made public ... not reliable to match on
+          # ... how do we authenticate user?
 
+          authConditionMet = False
+          if authConditionMet:
+              
+              # Check params
+              print params
 
+              # Validate params
 
+              # Create annotation
 
+              # Send annotation response back to origin form
 
+          else:
 
-
-
-      # TODO: Process and validate data if 
-
-
-      return self.respondWithDescription()
+              return self.respondWithDescription()
 
   # Set up Parameters
   def description(self):
