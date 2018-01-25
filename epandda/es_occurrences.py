@@ -86,7 +86,7 @@ class es_occurrences(mongoBasedResource):
 							country = pycountry.countries.get(name=countryTerm)
 						except KeyError:
 							return self.respondWithError("The country provided in the terms query could not be found. Please check your query and provide a valid country name")
-						countryCode = country.alpha_2.lower()
+						countryCode = country.alpha_2
 						term = countryCode
 					pbdbQuery['query']['bool']['must'].append({"match": {pbdbReplacements[field]: term}})
 					pbdbAdded = True
@@ -138,14 +138,17 @@ class es_occurrences(mongoBasedResource):
 
 			# PBDB uses numeric min/max ma so we don't have to worry about that here
 			chronoMatch = {'idigbio': {'early': 'dwc:earliestPeriodOrLowestSystem', 'late': 'dwc:latestPeriodOrHighestSystem'}}
+			chronoMatchLevel = None
 			if params['chronoMatchLevel']:
-				print "Changing Chrono match"
-				if params['chronoMatchLevel'] == 'stage':
+				chronoMatchLevel = params['chronoMatchLevel']
+				if params['chronoMatchLevel'] == 'age':
 					chronoMatch = {'idigbio': {'early': 'dwc:earliestAgeOrLowestStage', 'late': 'dwc:latestAgeOrHighestStage'}}
-				elif params['chronoMatchLevel'] == 'series':
+				elif params['chronoMatchLevel'] == 'epoch':
 					chronoMatch = {'idigbio': {'early': 'dwc:earliestEpochOrLowestSeries', 'late': 'dwc:latestEpochOrHighestSeries'}}
-				elif params['chronoMatchLevel'] == 'erathem':
+				elif params['chronoMatchLevel'] == 'era':
 					chronoMatch = {'idigbio': {'early': 'dwc:earliestEraOrLowestErathem', 'late': 'dwc:latestEraOrHighestErathem'}}
+			else:
+				chronoMatchLevel = 'period'
 			for res in [pbdbRes, idbRes]:
 				if res:
 					for hit in res['hits']['hits']:
@@ -160,10 +163,22 @@ class es_occurrences(mongoBasedResource):
 							linkField= 'idigbio:uuid'
 
 							if hit['_source'][localityMatch['idigbio']] is not None:
-								pbdbMatchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['idigbio']]}})
 								idbMatchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['idigbio']]}})
 								data['matchFields'][localityMatch['idigbio']] = hit['_source'][localityMatch['idigbio']]
 								recHash.update(data['matchFields'][localityMatch['idigbio']].encode('utf-8'))
+								if params['localityMatchLevel']:
+									ccParts = hit['_source'][localityMatch['idigbio']].split(' ')
+									for i in range(len(ccParts)):
+										ccParts[i] = ccParts[i][0].upper() + ccParts[i][1:]
+									countryTerm = ' '.join(ccParts)
+									try:
+										country = pycountry.countries.get(name=countryTerm)
+										pbdbMatchList.append({"match": {localityMatch['pbdb']: country.alpha_2}})
+									except KeyError:
+										noMatch = True
+								else:
+									pbdbMatchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['idigbio']]}})
+
 							else:
 								noMatch = True
 
@@ -197,17 +212,20 @@ class es_occurrences(mongoBasedResource):
 							else:
 								noMatch = True
 							if chrono_early and chrono_late:
-								ma_start_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": {"query": chrono_early, "fuzziness": "AUTO"}}}})
+
+								ma_start_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": chrono_late}}})
 								for ma_start_hit in ma_start_res['hits']['hits']:
-									if hit['_score'] > ma_start_score:
-										ma_start = ma_start_hit["_source"]["start_ma"]
-										ma_start_score = ma_start_hit['_score']
-								ma_end_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": {"query": chrono_late, "fuzziness": "AUTO"}}}})
+									if ma_start_hit["_source"]["level"] == chronoMatchLevel:
+										if hit['_score'] > ma_start_score:
+											ma_start = ma_start_hit["_source"]["start_ma"]
+											ma_start_score = ma_start_hit['_score']
+								ma_end_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": chrono_early}}})
 								for ma_end_hit in ma_end_res['hits']['hits']:
-									if hit['_score'] > ma_end_score:
-										ma_end = ma_start_hit["_source"]["end_ma"]
-										ma_end_score = ma_start_hit['_score']
-								data['matchFields']['chronostratigraphy'] = [ma_start, ma_end]
+									if ma_end_hit["_source"]["level"] == chronoMatchLevel:
+										if hit['_score'] > ma_end_score:
+											ma_end = ma_start_hit["_source"]["end_ma"]
+											ma_end_score = ma_start_hit['_score']
+								data['matchFields']['chronostratigraphy'] = {"max_ma": ma_start, "min_ma": ma_end}
 								pbdbMatchList.append({"range": {"min_ma": {"lte": ma_start}}})
 								pbdbMatchList.append({"range": {"max_ma": {"gte": ma_end}}})
 							recHash.update(str(ma_start)+str(ma_end))
@@ -223,7 +241,14 @@ class es_occurrences(mongoBasedResource):
 							queryIndex = 'pbdb'
 						elif hit['_type'] == 'pbdb':
 							if hit['_source'][localityMatch['pbdb']] is not None:
-								idbMatchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['pbdb']]}})
+								if params['localityMatchLevel'] == 'country':
+									try:
+										country = pycountry.countries.get(alpha_2=hit['_source'][localityMatch['pbdb']])
+										idbMatchList.append({"match": {localityMatch['idigbio']: country.name}})
+									except KeyError:
+										noMatch = True
+								else:
+									idbMatchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['pbdb']]}})
 								pbdbMatchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['pbdb']]}})
 								data['matchFields'][localityMatch['pbdb']] = hit['_source'][localityMatch['pbdb']]
 								recHash.update(data['matchFields'][localityMatch['pbdb']].encode('utf-8'))
@@ -239,17 +264,39 @@ class es_occurrences(mongoBasedResource):
 								noMatch = True
 
 							matchChrono = []
-							ma_start_res = self.es.search(index="chronolookup", body={"query": {"match": {"start_ma": {"query": hit['_source']['min_ma']}}}})
-							for ma_start_hit in ma_start_res['hits']['hits']:
-								matchChrono.append(ma_start_hit['_source']['name'])
-							ma_end_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": {"query": hit['_source']['max_ma']}}}})
-							for ma_end_hit in ma_end_res['hits']['hits']:
-								matchChrono.append(ma_end_hit['_source']['name'])
+							chronoQuery = {
+								"query":{
+									"bool":{
+										"must":[
+											{
+												"range":{
+													"start_ma":{
+														"gte": hit['_source']['max_ma']
+													}
+												}
+											},{
+												"range":{
+													"end_ma":{
+														"lte": hit['_source']['min_ma']
+													}
+												}
+											},{
+												"match":{
+													"level": chronoMatchLevel
+												}
+											}
+										]
+									}
+								}
+							}
+							chronoRes = self.es.search(index="chronolookup", body=chronoQuery)
+							for chrono in chronoRes['hits']['hits']:
+									matchChrono.append(chrono['_source']['name'])
 							data['matchFields']['chronostratigraphy'] = matchChrono
 							if not matchChrono:
 								noMatch = True
-							pbdbMatchList.append({"range": {"min_ma": {"lte": hit['_source']['min_ma']}}})
-							pbdbMatchList.append({"range": {"max_ma": {"gte": hit['_source']['max_ma']}}})
+							pbdbMatchList.append({"range": {"min_ma": {"lte": hit['_source']['max_ma']}}})
+							pbdbMatchList.append({"range": {"max_ma": {"gte": hit['_source']['min_ma']}}})
 							recHash.update(str(matchChrono))
 							linkID = hit['_source']['occurrence_no']
 							linkField = 'occurrence_no'
@@ -268,7 +315,7 @@ class es_occurrences(mongoBasedResource):
 							queryIndex = 'idigbio'
 						matches['search_after'] = json.dumps(hit["sort"])
 						hashRes = recHash.hexdigest()
-
+						print linkQuery
 						if hashRes in matches['results']:
 							sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"])
 							matches['results'][hashRes]['sources'].append(sourceRow)
@@ -356,7 +403,7 @@ class es_occurrences(mongoBasedResource):
 					"label": "Chronostratigraphy match level",
 					"type": "text",
 					"required": False,
-					"description": "The geologic time unit to use in matching records. Allowed values: stage|system|series|erathem",
+					"description": "The geologic time unit to use in matching records. Allowed values: age|epoch|period|era",
 					"display": True
 				},
 				{
