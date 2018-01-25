@@ -19,7 +19,7 @@ class publications(mongoBasedResource):
     def process(self):
 
         # Mongodb index for Publication
-        pubIndex = self.client.test.pubIndexV2
+        pubIndex = self.client.endpoints.pubIndexV2
 
 
         # returns dictionary of params as defined in endpoint description

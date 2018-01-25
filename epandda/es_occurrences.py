@@ -64,19 +64,28 @@ class es_occurrences(mongoBasedResource):
 				query['search_after'] = json.loads(params['searchFrom'])
 			# Parse the search term parameter and get the initial result from ES
 			if not params['terms']:
-				return {"ERROR": "You must provide at least one field:term pair"}
+				raise Exception({"ERROR": "You must provide at least one field:term pair"})
 			searchTerms = params['terms'].split('|')
 			for search in searchTerms:
 				pbdbAdded = False
 				idbAdded = False
-				field, term = search.split(':')
+				try:
+					field, term = search.split(':')
+				except ValueError:
+					return self.respondWithError("You provided a malformed terms query. Please ensure that this parameter is comprised of one or more field:term pairs separated by pipes (|)")
 				if field in idigbioReplacements:
 					idbQuery['query']['bool']['must'].append({"match": {idigbioReplacements[field]: term}})
 					idbAdded = True
 				if field in pbdbReplacements:
 					if field == 'country':
-						countryTerm = term[0].upper() + term[1:]
-						country = pycountry.countries.get(name=countryTerm)
+						ccParts = term.split(' ')
+						for i in range(len(ccParts)):
+							ccParts[i] = ccParts[i][0].upper() + ccParts[i][1:]
+						countryTerm = ' '.join(ccParts)
+						try:
+							country = pycountry.countries.get(name=countryTerm)
+						except KeyError:
+							return self.respondWithError("The country provided in the terms query could not be found. Please check your query and provide a valid country name")
 						countryCode = country.alpha_2.lower()
 						term = countryCode
 					pbdbQuery['query']['bool']['must'].append({"match": {pbdbReplacements[field]: term}})
@@ -158,7 +167,7 @@ class es_occurrences(mongoBasedResource):
 							else:
 								noMatch = True
 
-							if hit['_source'][taxonMatch['idigbio']] is None:
+							if hit['_source'][taxonMatch['idigbio']] is not None:
 								pbdbMatchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['idigbio']]}})
 								idbMatchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['idigbio']]}})
 								data['matchFields'][taxonMatch['idigbio']] = hit['_source'][taxonMatch['idigbio']]
