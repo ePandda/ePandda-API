@@ -92,15 +92,17 @@ class es_occurrences(mongoBasedResource):
 					pbdbAdded = True
 				if field == 'geopoint' or field == 'paleogeopoint':
 					if field == 'paleogeopoint':
-						field = 'paleoGeoPoint'
+						pbdbGeo = 'paleoGeoPoint'
+						idbGeo = 'idigbio:geoPoint'
 					else:
-						field = 'geoPoint'
+						pbdbGeo = 'geoPoint'
+						idbGeo = 'idigbio:geoPoint'
 					# Check to see if a radius was set, else use default (10km)
 					matchRadius = '10km'
 					if params['geoPointRadius']:
-						matchRadius = params['geoPointRadius']
-					pbdbQuery['query']['bool']['filter'] = {'geo_distance': {'distance': matchRadius, field: term}}
-					idbQuery['query']['bool']['filter'] = {'geo_distance': {'distance': matchRadius, field: term}}
+						matchRadius = str(params['geoPointRadius']) + 'km'
+					pbdbQuery['query']['bool']['filter'] = {'geo_distance': {'distance': matchRadius, pbdbGeo: term}}
+					idbQuery['query']['bool']['filter'] = {'geo_distance': {'distance': matchRadius, idbGeo: term}}
 					idbAdded = pbdbAdded = True
 				if idbAdded is False:
 					idbQuery['query']['bool']['must'].append({"match": {field: term}})
@@ -112,8 +114,8 @@ class es_occurrences(mongoBasedResource):
 				idbQuery['query']['bool']['must'] = {'match_all': {}}
 			if len(pbdbQuery['query']['bool']['must']) == 0:
 				pbdbQuery['query']['bool']['must'] = {'match_all': {}}
-			pbdbRes = self.es.search(index="pbdb", body=pbdbQuery)
 			idbRes = self.es.search(index="idigbio", body=idbQuery)
+			pbdbRes = self.es.search(index="pbdb", body=pbdbQuery)
 			# Get the fields to match on
 			matches = {'results': {}}
 			localityMatch = {'idigbio': 'dwc:county', 'pbdb': 'county'}
