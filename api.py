@@ -22,6 +22,7 @@ from epandda import bugReport
 from epandda import lithostratigraphy
 from epandda import annotations
 from epandda import es_occurrences
+from epandda import es_publications
 from epandda import createAnnotation
 from epandda import oauth
 from epandda import full_match_results
@@ -58,6 +59,7 @@ api.add_resource(bugReport.bugReport, '/bugReport')
 api.add_resource(lithostratigraphy.lithostratigraphy, '/lithostratigraphy')
 api.add_resource(annotations.annotations, '/annotations')
 api.add_resource(es_occurrences.es_occurrences, '/es_occurrences')
+api.add_resource(es_publications.es_publications, '/es_publications')
 api.add_resource(annotations.single, '/annotations/single/<string:annotation_id>')
 api.add_resource(createAnnotation.create, '/annotations/create')
 api.add_resource(oauth.oauth, '/oauth')

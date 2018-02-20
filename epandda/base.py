@@ -76,7 +76,14 @@ class baseResource(Resource):
                     if f in record:
                 		row[f] = record[f]
         elif record_type == 'pbdb':
-            row = {"url": 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + record_id + '&show=' + show_type }
+            
+            # PBDB Preferred this URL for publications ( especially in annotations case )
+            if "refs" == pbdb_type:
+              pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + record_id
+            else:
+              pbdb_url = 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + record_id + '&show=' + show_type 
+
+            row = {"url": pbdb_url }
 
             if idigbio_fields is not None:
                 if paleobio_fields is not None:
