@@ -60,11 +60,17 @@ class es_occurrences(mongoBasedResource):
 					"_doc"
 				]
 			}
-			if params['searchFrom']:
-				query['search_after'] = json.loads(params['searchFrom'])
+			if params['idigbioSearchFrom']:
+				idbQuery['search_after'] = json.loads('['+params['idigbioSearchFrom']+']')
+			if params['pbdbSearchFrom']:
+				pbdbQuery['search_after'] = json.loads('['+params['pbdbSearchFrom']+']')
 			# Parse the search term parameter and get the initial result from ES
 			if not params['terms']:
 				raise Exception({"ERROR": "You must provide at least one field:term pair"})
+
+			returnMedia = False
+			if params['returnMedia']:
+				returnMedia = True
 			searchTerms = params['terms'].split('|')
 			for search in searchTerms:
 				pbdbAdded = False
@@ -109,7 +115,6 @@ class es_occurrences(mongoBasedResource):
 				if pbdbAdded is False:
 					pbdbQuery['query']['bool']['must'].append({"match": {field: term}})
 
-			#	query['query']['bool']['must'].append({"match": {field: term}})
 			if len(idbQuery['query']['bool']['must']) == 0:
 				idbQuery['query']['bool']['must'] = {'match_all': {}}
 			if len(pbdbQuery['query']['bool']['must']) == 0:
@@ -152,7 +157,11 @@ class es_occurrences(mongoBasedResource):
 			else:
 				chronoMatchLevel = 'period'
 			for res in [pbdbRes, idbRes]:
-				if res:
+				if res['hits']['hits']:
+					if res['hits']['hits'][0]['_type'] == 'idigbio':
+						matches['idigbio_search_after'] = json.dumps(res['hits']['hits'][-1]['sort'])
+					else:
+						matches['pbdb_search_after'] = json.dumps(res['hits']['hits'][-1]['sort'])
 					for hit in res['hits']['hits']:
 						recHash = hashlib.sha1()
 						data = {'sourceRecords': [], 'links': [], 'matchFields': {}}
@@ -315,11 +324,15 @@ class es_occurrences(mongoBasedResource):
 								}
 							}
 							queryIndex = 'idigbio'
-						matches['search_after'] = json.dumps(hit["sort"])
+
 						hashRes = recHash.hexdigest()
-						print linkQuery
+
 						if hashRes in matches['results']:
 							sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"])
+							if returnMedia and hit['_type'] == 'idigbio' and sourceRow['idigbio:hasImage'] == 'true':
+								mediaFiles = self._queryMedia(sourceRow['idigbio:uuid'])
+								if mediaFiles:
+									sourceRow['mediaURLs'] = mediaFiles
 							matches['results'][hashRes]['sources'].append(sourceRow)
 						else:
 							sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"])
@@ -333,6 +346,10 @@ class es_occurrences(mongoBasedResource):
 									linkResult = self.es.search(index=queryIndex, body=linkQuery)
 								for link in linkResult['hits']['hits']:
 									row = self.resolveReference(link['_source'], link['_id'], link['_type'])
+									if returnMedia and link['_type'] == 'idigbio' and row['idigbio:hasImage'] == 'true':
+										mediaFiles = self._queryMedia(row['idigbio:uuid'])
+										if mediaFiles:
+											row['mediaURLs'] = mediaFiles
 									row['score'] = link['_score']
 									row['type'] = link['_type']
 									matches['results'][hashRes]['matches'].append(row)
@@ -376,6 +393,16 @@ class es_occurrences(mongoBasedResource):
 			return matches
 		else:
 			return self.respondWithDescription()
+
+	def _queryMedia(self, coreid):
+		mediaURLs = []
+		mediaQuery = {"query": {"term": {"coreid.keyword": coreid}}}
+		mediaRes = self.es.search(index="idigbio_media", body=mediaQuery)
+		if mediaRes:
+			for media in mediaRes['hits']['hits']:
+				mediaURLs.append(media['_source']['ac:accessURI'])
+		return mediaURLs
+
 
 	def description(self):
 		return {
@@ -433,11 +460,27 @@ class es_occurrences(mongoBasedResource):
 					"display": True
 				},
 				{
-					"name": "searchFrom",
-					"label": "Last returned record to search from",
+					"name": "idigbioSearchFrom",
+					"label": "iDigBio ;ast returned record to search from",
 					"type": "text",
 					"required": False,
 					"description": "This implements paging in a more effecient way in ElasticSearch. It should be provided the last return search result in order to request a subsequent page of search results",
 					"display": False
+				},
+				{
+					"name": "pbdbSearchFrom",
+					"label": "PBDB last returned record to search from",
+					"type": "text",
+					"required": False,
+					"description": "This implements paging in a more effecient way in ElasticSearch. It should be provided the last return search result in order to request a subsequent page of search results",
+					"display": False
+				},
+				{
+					"name": "returnMedia",
+					"label": "Return media from iDigBio",
+					"type": "boolean",
+					"required": False,
+					"description": "Toggle to return any matching media from iDigBio",
+					"display": True
 				}
 			]}
