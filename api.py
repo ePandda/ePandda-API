@@ -11,15 +11,8 @@ from flask_restful import Resource, Api
 from werkzeug.security import safe_str_cmp
 
 from epandda import banner
-from epandda import geonames
 from epandda import stats
-from epandda import publications
-from epandda import stratigraphy
-from epandda import occurrences
-from epandda import query
-from epandda import taxonomy
 from epandda import bugReport
-from epandda import lithostratigraphy
 from epandda import annotations
 from epandda import es_occurrences
 from epandda import es_publications
@@ -48,15 +41,8 @@ CORS(app)
 
 # emit banner
 api.add_resource(banner.banner, '/')
-api.add_resource(query.query, '/query')
-api.add_resource(geonames.geonames, '/geonames')
 api.add_resource(stats.stats, '/stats')
-api.add_resource(publications.publications, '/publications')
-api.add_resource(stratigraphy.stratigraphy, '/stratigraphy')
-api.add_resource(occurrences.occurrences, '/occurrences')
-api.add_resource(taxonomy.taxonomy, '/taxonomy')
 api.add_resource(bugReport.bugReport, '/bugReport')
-api.add_resource(lithostratigraphy.lithostratigraphy, '/lithostratigraphy')
 api.add_resource(annotations.annotations, '/annotations')
 api.add_resource(es_occurrences.es_occurrences, '/es_occurrences')
 api.add_resource(es_publications.es_publications, '/es_publications')
