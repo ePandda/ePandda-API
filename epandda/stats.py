@@ -1,5 +1,6 @@
 from flask_restful import Resource, Api
 from base import baseResource
+import datetime
 #
 # Emit API stats
 #
@@ -29,6 +30,15 @@ class stats(baseResource):
                 response['totalRecords'] = totalCount
                 response['specimens'] = idbCount
                 response['occurrences'] = pbdbCount
+
+            if params['lastUpdated']:
+                rIndex = self.client.ingest_log.ingests
+                docs = rIndex.find({}).sort([('_id', -1)]).limit(1)
+                for lastUpdateDoc in docs:
+                    lastUpdate = lastUpdateDoc['ingestDate']
+                    criteria['parameters'].append('lastUpdated')
+                    response['lastUpdated'] = lastUpdate.strftime('%Y-%m-%dT%H:%M:%S.000Z')
+                    break
 
             #localityIndex = endpoints.localityIndex
             #for place in ['countries', 'stateProvinces', 'counties', 'localities']:
@@ -104,6 +114,13 @@ class stats(baseResource):
                 "type": "boolean",
                 "required": False,
                 "description": "The count of all specimen/occurrence records included in project from iDigBio and PBDB"
+            },
+            {
+                "name": "lastUpdated",
+                "label": "Last Updated",
+                "type": "boolean",
+                "required": False,
+                "description": "The last time an update was run to import new records from iDigBio or PBDB"
             },
             {
                 "name": "taxonomies",
