@@ -27,7 +27,7 @@ class baseResource(Resource):
         self.config = json.load(open('./config.json'))
 
         self.client = MongoClient("mongodb://" + self.config['mongodb_user'] + ":" + self.config['mongodb_password'] + "@" + self.config['mongodb_host'])
-        self.es = Elasticsearch(['http://whirl.mine.nu:9200'], timeout=30)
+        self.es = Elasticsearch([self.config['elastic_host']], timeout=30)
         #self.client = MongoClient("mongodb://127.0.0.1")
         self.idigbio = self.client.idigbio.occurrence
         self.pbdb = self.client.pbdb.pbdb_occurrences
@@ -76,12 +76,12 @@ class baseResource(Resource):
                     if f in record:
                 		row[f] = record[f]
         elif record_type == 'pbdb':
-            
+
             # PBDB Preferred this URL for publications ( especially in annotations case )
             if "refs" == pbdb_type:
-              pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + record_id
+              pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + record['occ_refs-reference_no']
             else:
-              pbdb_url = 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + record_id + '&show=' + show_type 
+              pbdb_url = 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + record_id + '&show=' + show_type
 
             row = {"url": pbdb_url }
 
@@ -188,7 +188,7 @@ class baseResource(Resource):
 
           for pbdbid in pbdb_ids:
 
-            # PBDB resolves to different URL's based on if occurrence or publication 
+            # PBDB resolves to different URL's based on if occurrence or publication
             pbdb_url = 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + str(pbdbid) + '&show=' + show_type
             if 'refs' == pbdb_type:
               pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + str(pbdbid)
