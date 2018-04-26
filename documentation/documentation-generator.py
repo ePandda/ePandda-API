@@ -1,4 +1,4 @@
-# 
+#
 # This generates a static endpoint documentation page for the ePANDDA website
 # It is refreshed daily/weekly so it should be up to date as it pulls from the endpoints themselves
 #
@@ -6,43 +6,45 @@
 import requests
 import json
 
-banner = requests.get('https://api.epandda.org/')
+banner = requests.get('https://api.epandda.org')
 
-doc = open('../../site/endpoint_doc_temp.html', 'w')
+doc = open('../../../sites/epandda/endpoint_doc.html', 'w')
 
 endpoint_doc = '''
 <section id="documentation-endpoint" class="container-full">
 <div class="row">
-	<div class="col-12-s">
-		<h1>ePANDDA Endpoint Documentation</h1>
+	<div id="endpoint-header" class="col-12">
+		<h2>ENDPOINTS</h2>
 	</div>
 </div>
 '''
 
 if banner.status_code == 200:
 	data = banner.json()
-	
+
 	end_sections = []
 
 	for endpoint in data['routes']:
-		print endpoint
 		if endpoint in ['/']:
 			continue
-		route = 'https://api.epandda.org/' + endpoint['url']
+		route = 'https://api.epandda.org' + endpoint['url']
 		description = requests.get(route)
-		
+
 		if description.status_code == 200:
 			if len(endpoint['url'][1:]) < 1:
 				continue
 			params = description.json()
+			if not params:
+				continue
 			desc = params['description'] if 'description' in params else 'This is a temporary description'
 			point_row = '''
 <div class="row">
-	<div class="col-12-s">
+	<div class="col-12">
 		<h2>{0}</h2>
-		<p>{1}</p>
-			'''.format(endpoint['url'][1:], desc)
-			
+		<p>Endpoint: <a href="api.epandda.org/{2}" target="_blank">api.epandda.org/{2}</a><br/>
+		{1}</p>
+			'''.format(params['name'], desc, endpoint['url'][1:])
+
 			param_table_open = '''
 		<table class="parameterTable">
 			<tr>
@@ -56,7 +58,7 @@ if banner.status_code == 200:
 
 			if 'params' in params:
 				rows = []
-				
+
 				for param in params['params']:
 					print param
 					param_name = param['name'] if 'name' in param else ''
@@ -74,9 +76,9 @@ if banner.status_code == 200:
 			</tr>
 					'''.format(param_name, param_label, param_type, param_req, param_desc)
 					rows.append(param_row)
-				
+
 				table_rows = ' '.join(rows)
-			
+
 			param_table_close = '''
 		</table>
 	</div>
@@ -88,12 +90,11 @@ if banner.status_code == 200:
 			end_sections.append(endpoint_section)
 		else:
 			print "ERROR " + str(description.status_code)
-		
+
 	point_html = ' '.join(end_sections)
 
 doc_end = '''
 </section>
 '''
 full_html = ' '.join([endpoint_doc, point_html, doc_end])
-print full_html
 doc.write(full_html)
