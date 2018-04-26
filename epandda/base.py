@@ -546,16 +546,19 @@ class baseResource(Resource):
         errors_filtered = {}
         if type(errors) is int:
             return {"errors": errors}
-        for i in errors:
-            if i == "GENERAL" or i in names:
-                if type(errors[i]) is list:
-                    errors_filtered[i] = errors[i]
-                elif type(errors[i]) is tuple:
-                    errors_filtered[i] = [v for key in errors[i] for v in key]
+        elif type(errors) is str:
+            errors_filtered = "Unknown error: " + errors
+        else:
+            for i in errors:
+                if i == "GENERAL" or i in names:
+                    if type(errors[i]) is list:
+                        errors_filtered[i] = errors[i]
+                    elif type(errors[i]) is tuple:
+                        errors_filtered[i] = [v for key in errors[i] for v in key]
+                    else:
+                        errors_filtered[i] = [errors[i]]
                 else:
-                    errors_filtered[i] = [errors[i]]
-            else:
-                errors_filtered[i] = "Unknown error: " + errors
+                    errors_filtered[i] = "Unknown error: " + errors
 
         if self.returnResponse:
             return Response(json.dumps({"errors": errors_filtered}, sort_keys=True, indent=4, separators=(',', ': ')).encode('utf8'), status=500, mimetype="text/json")
