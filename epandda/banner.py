@@ -10,6 +10,7 @@ class banner(baseResource):
 
         routes = []
         for rule in current_app.url_map.iter_rules():
+          print rule
           if (rule.endpoint == 'static'):
               continue
 
@@ -18,12 +19,16 @@ class banner(baseResource):
             options[arg] = "[{0}]".format(arg)
 
           url = url_for(rule.endpoint, **options)
+          print rule.endpoint
+          print rule.methods
           endpoint = self.loadEndpoint(rule.endpoint)
-
+          print endpoint
           if endpoint is None:
               continue
 
           desc = endpoint.description();
+          if desc['private'] is True:
+              continue
           routes.append({'url': url, 'methods': ",".join(rule.methods), 'name': desc['name'], 'description': desc['description'] })
 
         return self.respond({
@@ -37,5 +42,6 @@ class banner(baseResource):
             'maintainer': 'Seth Kaufman',
             'maintainer_email': 'seth@epandda.org',
             'description': 'Summary of available endpoints',
+            'private': False,
             'params': []
         }

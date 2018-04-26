@@ -59,6 +59,7 @@ class full_match_results(mongoBasedResource):
 			'maintainer': 'Michael Benowitz',
 			'maintainer_email': 'michael@epandda.org',
 			'description': 'Returns full data sets for matching criteria returned from the main Occurrence endpoint',
+            'private': False,
 			'params': [
 				{
 					"name": "sourceQuery",

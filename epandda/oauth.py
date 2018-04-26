@@ -8,7 +8,7 @@ from mongo import mongoBasedResource
 class oauth(mongoBasedResource):
 
     # Overloaded getParams to bypass default lower() functionality.
-    # Removed default to always include offset, limit, and source field lists. 
+    # Removed default to always include offset, limit, and source field lists.
     def getParams(self):
 
         if  self.paramCount > 0:
@@ -18,7 +18,7 @@ class oauth(mongoBasedResource):
 
         r = self.getRequest()
         r_as_json = request.get_json(silent=True)
-        
+
         c = 0
         self.params = {}
 
@@ -50,7 +50,7 @@ class oauth(mongoBasedResource):
 
         self.validateParams()
         self.paramCount = c
-        
+
         return self.params
 
 
@@ -70,7 +70,7 @@ class oauth(mongoBasedResource):
         # Init HTTP
         http = urllib3.PoolManager( cert_reqs='CERT_REQUIRED', ca_certs=certifi.where())
 
-        # ORCID oAuth 
+        # ORCID oAuth
         redirect_url = self.config['orcid_redirect']
         client_id = self.config['orcid_client_id']
         client_secret = self.config['orcid_client_secret']
@@ -81,7 +81,7 @@ class oauth(mongoBasedResource):
         print "CODE:"
         print code
 
-        # TODO:Move this to webform button 
+        # TODO:Move this to webform button
         # This URL redirects user to ORCID, enters their user/pass and redirects to this endpoint with code
         #orcid_url = "https://orcid.org/oauth/authorize?client_id=" + client_id + "&response_type=code&scope=/authenticate&redirect_uri=" + redirect_url
 
@@ -119,20 +119,21 @@ class oauth(mongoBasedResource):
 
 
         #return self.respond({
-        #    'counts': 0, 
+        #    'counts': 0,
         #   'results': [],
         #   'criteria': [],
         #})
 
-            
+
 
     # Stub / "hidden endpoint"
     def description(self):
-        return {
-            'name': '',
+		return {
+            'name': 'oauth',
             'maintainer': 'Jon Lauters',
             'maintainer_email': 'jon@epandda.org',
             'description': 'oauth callback',
+            'private': True,
             'params': [
                 {
                     "name": "code",
@@ -143,4 +144,3 @@ class oauth(mongoBasedResource):
                 }
             ]
         }
-                

@@ -17,7 +17,7 @@ class single(mongoBasedResource):
 
     annotation_id_string = "urn:uuid:" + str(annotation_id)
     res = annotations.find({'@id': annotation_id_string}, {'_id': False})
-   
+
     d = []
     for i in res:
       d.append(i)
@@ -35,7 +35,7 @@ class single(mongoBasedResource):
             'maintainer_email': 'jon@epandda.org',
             'description': 'Returns single annotation. (ex: https://api.epandda.org/annotations/single/<uuid>)',
             'params': []
-           
+
         }
 
 
@@ -48,11 +48,11 @@ class annotations(mongoBasedResource):
 
         # Mongodb index for Annotations
         annotations = self.client.endpoints.annotations
-  
+
         # returns dictionary of params as defined in endpoint description
         # will throw exception if required param is not present
         params = self.getParams()
-        
+
         # offset and limit returned as ints with default if not set
         offset = self.offset()
         limit = self.limit()
@@ -68,16 +68,16 @@ class annotations(mongoBasedResource):
             'parameters': {},
           }
 
-          for p in ['annotationDate', 'annotationDateAfter', 'annotationDateBefore', 'quality_score']:  
- 
+          for p in ['annotationDate', 'annotationDateAfter', 'annotationDateBefore', 'quality_score']:
+
             if params[p]:
 
               if 'annotationDate' == p:
                 annoQuery.append({"annotatedAt": { '$regex': params[p]} })
 
               if 'annotationDateAfter' == p:
-                annoQuery.append({"annotatedAt": { '$gte': params[p]} }) 
-            
+                annoQuery.append({"annotatedAt": { '$gte': params[p]} })
+
               if 'annotationDateBefore' == p:
                 annoQuery.append({"annotatedAt": { '$lte': params[p]} })
 
@@ -87,7 +87,7 @@ class annotations(mongoBasedResource):
               criteria['parameters'][p] = str(params[p]).lower()
 
           d = []
- 
+
           # Total Count:
           annoCount = annotations.find({}).count()
 
@@ -98,7 +98,7 @@ class annotations(mongoBasedResource):
           else:
             # Allows for optional Date param since you can't $and on nothing.
             res = annotations.find({}, {'_id': False}).skip(offset).limit(limit)
-            
+
 
 
           if res:
@@ -109,14 +109,14 @@ class annotations(mongoBasedResource):
           counts = {'totalCount': annoCount, 'annotationsCount': len(d)}
 
           return self.respond({
-              'counts': counts, 
+              'counts': counts,
               'results': d,
               'criteria': criteria,
           })
         else:
 
           return self.respondWithDescription()
-            
+
 
     def description(self):
         return {
@@ -124,6 +124,7 @@ class annotations(mongoBasedResource):
             'maintainer': 'Jon Lauters',
             'maintainer_email': 'jon@epandda.org',
             'description': 'Returns openAnnotations for linked data in ePANDDA.',
+            'private': False,
             'params': [
                 {
                     "name": "annotationDate",
@@ -155,4 +156,3 @@ class annotations(mongoBasedResource):
                 }
             ]
         }
-                
