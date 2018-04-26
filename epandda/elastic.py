@@ -18,8 +18,9 @@ class elasticBasedResource(baseResource):
 				mediaURLs.append(media['_source']['ac:accessURI'])
 		return mediaURLs
 
-	def processSearchTerms(self, searchTerms, idigbioReplacements, pbdbReplacements):
+	def processSearchTerms(self, params, idigbioReplacements, pbdbReplacements):
 
+		searchTerms = params['terms'].split('|')
 		limit = self.limit()
 
 		idbQuery = {
@@ -98,6 +99,40 @@ class elasticBasedResource(baseResource):
 			processed['pbdbQuery']['query']['bool']['must'] = {'match_all': {}}
 
 		return processed
+	# geoPoint v paleoGeoPoint
+	def addGeoFilters(self, idbQuery, pbdbQuery, geoParam):
+		paramParts = geoParam.split('|')
+		coords = paramParts[0].split(';')
+		matchRadius = 10
+		if len(paramParts) > 1:
+			try:
+				matchRadius = int(paramParts[1])
+			except ValueError:
+				pass
+		matchDistance = str(matchRadius) + 'km'
+
+		matchField = None
+		if len(paramParts) > 2:
+			matchField = paramParts[2].lower()
+
+		queries = [(idbQuery, 'idigbio:geoPoint'), (pbdbQuery, 'geoPoint')]
+		if matchField == 'paleo' or matchField == 'paleogeopoint':
+			idbQuery = None
+			queries = [(pbdbQuery, 'paleoGeoPoint'), (idbQuery, None)]
+
+		for query in queries:
+			if query[0] is None:
+				continue
+			if len(coords) == 1:
+				geoFilter = {'geo_distance': {'distance': matchDistance, query[1]: coords[0]}}
+			elif len(coords) == 2:
+				geoFilter = {'geo_bounding_box': {query[1]: {"top_left": coords[0], "bottom_right": coords[1]}}}
+			elif len(coords) > 2:
+				geoFilter = {'geo_polygon': {query[1]: {"points": coords}}}
+			query[0]['query']['bool']['filter'] = geoFilter
+
+
+		return pbdbQuery, idbQuery
 
 	def getLocalityMatch(self, matchLevel):
 		localityMatch = {'idigbio': 'dwc:county', 'pbdb': 'county'}
@@ -142,257 +177,264 @@ class elasticBasedResource(baseResource):
 	def parseMatches(self, params, idbRes, pbdbRes, taxonMatch, localityMatch, chronoMatch, chronoMatchLevel, returnMedia=False, pbdbType='occs'):
 
 		matches = {'results': {}}
-
 		for res in [pbdbRes, idbRes]:
-			if res:
+			print res
+			if res['hits']['total'] == 0:
+				continue
 
-				for hit in res['hits']['hits']:
+			if res['hits']['hits'][0]['_type'] == 'idigbio':
+				matches['idigbio_search_after'] = json.dumps(res['hits']['hits'][-1]['sort'])
+			else:
+				matches['pbdb_search_after'] = json.dumps(res['hits']['hits'][-1]['sort'])
 
-					recHash = hashlib.sha1()
-					data = {'sourceRecords': [], 'links': [], 'matchFields': {}}
+			for hit in res['hits']['hits']:
 
-					idbMatchList = []
-					pbdbMatchList = []
-					noMatch = False
+				recHash = hashlib.sha1()
+				data = {'sourceRecords': [], 'links': [], 'matchFields': {}}
 
-					if hit['_type'] == 'idigbio':
+				idbMatchList = []
+				pbdbMatchList = []
+				noMatch = False
 
-						# Store the primary ID
-						linkID = hit['_source']['idigbio:uuid']
-						linkField= 'idigbio:uuid'
+				if hit['_type'] == 'idigbio':
 
-						# iDigBio Locality Matches
-						if hit['_source'][localityMatch['idigbio']] is not None:
-							idbMatchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['idigbio']]}})
-							data['matchFields'][localityMatch['idigbio']] = hit['_source'][localityMatch['idigbio']]
-							recHash.update(data['matchFields'][localityMatch['idigbio']].encode('utf-8'))
+					# Store the primary ID
+					linkID = hit['_source']['idigbio:uuid']
+					linkField= 'idigbio:uuid'
 
-							if params['localityMatchLevel']:
-								ccParts = hit['_source'][localityMatch['idigbio']].split(' ')
-								for i in range(len(ccParts)):
-									ccParts[i] = ccParts[i][0].upper() + ccParts[i][1:]
+					# iDigBio Locality Matches
+					if hit['_source'][localityMatch['idigbio']] is not None:
+						idbMatchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['idigbio']]}})
+						data['matchFields'][localityMatch['idigbio']] = hit['_source'][localityMatch['idigbio']]
+						recHash.update(data['matchFields'][localityMatch['idigbio']].encode('utf-8'))
 
-								countryTerm = ' '.join(ccParts)
+						if params['localityMatchLevel']:
+							ccParts = hit['_source'][localityMatch['idigbio']].split(' ')
+							for i in range(len(ccParts)):
+								ccParts[i] = ccParts[i][0].upper() + ccParts[i][1:]
 
-								try:
-									country = pycountry.countries.get(name=countryTerm)
-									pbdbMatchList.append({"match": {localityMatch['pbdb']: country.alpha_2}})
-								except KeyError:
-									noMatch = True
-							else:
-								pbdbMatchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['idigbio']]}})
+							countryTerm = ' '.join(ccParts)
 
+							try:
+								country = pycountry.countries.get(name=countryTerm)
+								pbdbMatchList.append({"match": {localityMatch['pbdb']: country.alpha_2}})
+							except KeyError:
+								noMatch = True
 						else:
-							noMatch = True
+							pbdbMatchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['idigbio']]}})
 
-						# iDigBio Taxon Matches
-						if hit['_source'][taxonMatch['idigbio']] is not None:
-							pbdbMatchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['idigbio']]}})
-							idbMatchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['idigbio']]}})
-							data['matchFields'][taxonMatch['idigbio']] = hit['_source'][taxonMatch['idigbio']]
-							recHash.update(data['matchFields'][taxonMatch['idigbio']])
+					else:
+						noMatch = True
+
+					# iDigBio Taxon Matches
+					if hit['_source'][taxonMatch['idigbio']] is not None:
+						pbdbMatchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['idigbio']]}})
+						idbMatchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['idigbio']]}})
+						data['matchFields'][taxonMatch['idigbio']] = hit['_source'][taxonMatch['idigbio']]
+						recHash.update(data['matchFields'][taxonMatch['idigbio']])
+					else:
+						noMatch = True
+
+					# iDigBio Chronostrat Matches
+					chrono_early = chrono_late = None
+					ma_start_score = ma_end_score = 0
+					ma_start = 1000
+					ma_end = 0
+
+					if hit['_source'][chronoMatch['idigbio']['early']] and hit['_source'][chronoMatch['idigbio']['late']]:
+
+						chrono_early = hit['_source'][chronoMatch['idigbio']['early']]
+						chrono_late = hit['_source'][chronoMatch['idigbio']['late']]
+
+						idbMatchList.append({"match": {chronoMatch['idigbio']['early']: hit['_source'][chronoMatch['idigbio']['early']]}})
+						idbMatchList.append({"match": {chronoMatch['idigbio']['late']: hit['_source'][chronoMatch['idigbio']['late']]}})
+					elif hit['_source'][chronoMatch['idigbio']['early']]:
+
+						chrono_early = hit['_source'][chronoMatch['idigbio']['early']]
+						chrono_late = hit['_source'][chronoMatch['idigbio']['early']]
+
+						idbMatchList.append({"match": {chronoMatch['idigbio']['early']: hit['_source'][chronoMatch['idigbio']['early']]}})
+						idbMatchList.append({"match": {chronoMatch['idigbio']['late']: hit['_source'][chronoMatch['idigbio']['early']]}})
+					elif hit['_source'][chronoMatch['idigbio']['late']]:
+
+						chrono_early = hit['_source'][chronoMatch['idigbio']['late']]
+						chrono_late = hit['_source'][chronoMatch['idigbio']['late']]
+
+						idbMatchList.append({"match": {chronoMatch['idigbio']['early']: hit['_source'][chronoMatch['idigbio']['late']]}})
+						idbMatchList.append({"match": {chronoMatch['idigbio']['late']: hit['_source'][chronoMatch['idigbio']['late']]}})
+					else:
+						noMatch = True
+
+					# Do chronoLookup query if chrono_eary and chrono_late are set
+					if chrono_early and chrono_late:
+
+						# Late Query
+						ma_start_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": chrono_late}}})
+						for ma_start_hit in ma_start_res['hits']['hits']:
+							if ma_start_hit['_source']['level'] == chronoMatchLevel:
+								if hit['_score'] > ma_start_score:
+									ma_start = ma_start_hit['_source']['start_ma']
+									ma_start_score = ma_start_hit['_score']
+
+						# Early Query
+						ma_end_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": chrono_early}}})
+						for ma_end_hit in ma_end_res['hits']['hits']:
+							if ma_end_hit['_source']['level'] == chronoMatchLevel:
+								if hit['_score'] > ma_end_score:
+									ma_end = ma_start_hit['_source']['end_ma']
+									ma_end_score = ma_start_hit['_score']
+
+						data['matchFields']['chronostratigraphy'] = {"max_ma": ma_start, "min_ma": ma_end}
+
+						pbdbMatchList.append({"range": {"min_ma": {"lte": ma_start}}})
+						pbdbMatchList.append({"range": {"max_ma": {"gte": ma_end}}})
+
+					recHash.update( str(ma_start) + str(ma_end) )
+					linkQuery = {
+						"size": 10,
+						"query":{
+							"bool":{
+								"must": pbdbMatchList
+							}
+						}
+					}
+					queryIndex = 'pbdb'
+
+				elif hit['_type'] == 'pbdb':
+
+					# PBDB Locality Matches
+					if hit['_source'][localityMatch['pbdb']] is not None:
+
+						if params['localityMatchLevel'] == 'country':
+							try:
+								country = pycountry.countries.get(alpha_2=hit['_source'][localityMatch['pbdb']])
+								idbMatchList.append({"match": {localityMatch['idigbio']: country.name}})
+							except KeyError:
+								noMatch = True
 						else:
-							noMatch = True
+							idbMatchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['pbdb']]}})
 
-						# iDigBio Chronostrat Matches
-						chrono_early = chrono_late = None
-						ma_start_score = ma_end_score = 0
-						ma_start = 1000
-						ma_end = 0
+						pbdbMatchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['pbdb']]}})
+						data['matchFields'][localityMatch['pbdb']] = hit['_source'][localityMatch['pbdb']]
+						recHash.update(data['matchFields'][localityMatch['pbdb']].encode('utf-8'))
+					else:
+						noMatch = True
 
-						if hit['_source'][chronoMatch['idigbio']['early']] and hit['_source'][chronoMatch['idigbio']['late']]:
+					# PBDB Taxon Matches
+					if hit['_source'][taxonMatch['pbdb']] is not None:
 
-							chrono_early = hit['_source'][chronoMatch['idigbio']['early']]
-							chrono_late = hit['_source'][chronoMatch['idigbio']['late']]
+						idbMatchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['pbdb']]}})
+						pbdbMatchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['pbdb']]}})
+						data['matchFields'][taxonMatch['pbdb']] = hit['_source'][taxonMatch['pbdb']]
+						recHash.update(data['matchFields'][taxonMatch['pbdb']])
+					else:
+						noMatch = True
 
-							idbMatchList.append({"match": {chronoMatch['idigbio']['early']: hit['_source'][chronoMatch['idigbio']['early']]}})
-							idbMatchList.append({"match": {chronoMatch['idigbio']['late']: hit['_source'][chronoMatch['idigbio']['late']]}})
-						elif hit['_source'][chronoMatch['idigbio']['early']]:
 
-							chrono_early = hit['_source'][chronoMatch['idigbio']['early']]
-							chrono_late = hit['_source'][chronoMatch['idigbio']['early']]
+					# PBDB Chrono matching ( uses chronolookup index in ES )
+					matchChrono = []
+					chronoQuery = {
+						"query": {
+							"bool": {
+								"must": [
+									{ "range": { "start_ma": { "gte": hit['_source']['max_ma'] } } },
+									{ "range": { "end_ma": { "lte": hit['_source']['min_ma'] } } },
+									{ "match": { "level": chronoMatchLevel } }
+								]
+							}
+						}
+					}
 
-							idbMatchList.append({"match": {chronoMatch['idigbio']['early']: hit['_source'][chronoMatch['idigbio']['early']]}})
-							idbMatchList.append({"match": {chronoMatch['idigbio']['late']: hit['_source'][chronoMatch['idigbio']['early']]}})
-						elif hit['_source'][chronoMatch['idigbio']['late']]:
+					chronoRes = self.es.search(index="chronolookup", body=chronoQuery)
 
-							chrono_early = hit['_source'][chronoMatch['idigbio']['late']]
-							chrono_late = hit['_source'][chronoMatch['idigbio']['late']]
+					for chrono in chronoRes['hits']['hits']:
+						matchChrono.append(chrono['_source']['name'])
 
-							idbMatchList.append({"match": {chronoMatch['idigbio']['early']: hit['_source'][chronoMatch['idigbio']['late']]}})
-							idbMatchList.append({"match": {chronoMatch['idigbio']['late']: hit['_source'][chronoMatch['idigbio']['late']]}})
-						else:
-							noMatch = True
+					data['matchFields']['chronostratigraphy'] = matchChrono
 
-						# Do chronoLookup query if chrono_eary and chrono_late are set
-						if chrono_early and chrono_late:
+					if not matchChrono:
+						noMatch = True
 
-							# Late Query
-							ma_start_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": chrono_late}}})
-							for ma_start_hit in ma_start_res['hits']['hits']:
-								if ma_start_hit['_source']['level'] == chronoMatchLevel:
-									if hit['_score'] > ma_start_score:
-										ma_start = ma_start_hit['_source']['start_ma']
-										ma_start_score = ma_start_hit['_score']
+					pbdbMatchList.append({"range": {"min_ma": {"lte": hit['_source']['max_ma']}}})
+					pbdbMatchList.append({"range": {"max_ma": {"gte": hit['_source']['min_ma']}}})
 
-							# Early Query
-							ma_end_res = self.es.search(index="chronolookup", body={"query": {"match": {"name": chrono_early}}})
-							for ma_end_hit in ma_end_res['hits']['hits']:
-								if ma_end_hit['_source']['level'] == chronoMatchLevel:
-									if hit['_score'] > ma_end_score:
-										ma_end = ma_start_hit['_source']['end_ma']
-										ma_end_score = ma_start_hit['_score']
+					recHash.update( str(matchChrono) )
 
-							data['matchFields']['chronostratigraphy'] = {"max_ma": ma_start, "min_ma": ma_end}
+					linkID = hit['_source']['occurrence_no']
+					linkField = 'occurrence_no'
 
-							pbdbMatchList.append({"range": {"min_ma": {"lte": ma_start}}})
-							pbdbMatchList.append({"range": {"max_ma": {"gte": ma_end}}})
+					linkQuery = {
+						"size": 10,
+						"query": {
+							"bool": {
+								"must": idbMatchList,
+								"should": [
+									{ "terms": { chronoMatch['idigbio']['early']: matchChrono}},
+									{ "terms": { chronoMatch['idigbio']['late']: matchChrono}}
+								]
+							}
+						}
+					}
+					queryIndex = 'idigbio'
 
-						recHash.update( str(ma_start) + str(ma_end) )
-						linkQuery = {
-							"size": 10,
+				#matches['search_after'] = json.dumps(hit["sort"])
+				hashRes = recHash.hexdigest()
+
+				if hashRes in matches['results']:
+					sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"], pbdbType)
+					matches['results'][hashRes]['sources'].append(sourceRow)
+				else:
+
+					# Resolve Reference, hardset the pbdb_type to refs
+					sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"], pbdbType)
+					matches['results'][hashRes] = {'fields': data['matchFields'], 'totalMatches': 0, 'matches': None, 'sources': [sourceRow], 'fullMatchQuery': None}
+					if noMatch is False:
+						linkResult = self.es.search(index=queryIndex, body=linkQuery)
+						totalMatches = linkResult['hits']['total']
+						if totalMatches > 0:
+							matches['results'][hashRes]['matches'] = []
+							for link in linkResult['hits']['hits']:
+								row = self.resolveReference(link['_source'], link['_id'], link['_type'], pbdbType)
+								row['score'] = link['_score']
+								row['type'] = link['_type']
+								matches['results'][hashRes]['matches'].append(row)
+								data['links'].append([link['_id'], link['_score'], link['_type']])
+
+							matches['results'][hashRes]['totalMatches'] = totalMatches
+							linkQuery['size'] = totalMatches
+							matches['results'][hashRes]['fullMatchQuery'] = json.dumps(linkQuery)
+
+						matches['results'][hashRes]['fields'] = data['matchFields']
+
+					if queryIndex == 'idigbio':
+						sourceQuery = {
 							"query":{
 								"bool":{
 									"must": pbdbMatchList
 								}
 							}
 						}
-						queryIndex = 'pbdb'
 
-					elif hit['_type'] == 'pbdb':
-
-						# PBDB Locality Matches
-						if hit['_source'][localityMatch['pbdb']] is not None:
-
-							if params['localityMatchLevel'] == 'country':
-								try:
-									country = pycountry.countries.get(alpha_2=hit['_source'][localityMatch['pbdb']])
-									idbMatchList.append({"match": {localityMatch['idigbio']: country.name}})
-								except KeyError:
-									noMatch = True
-							else:
-								idbMatchList.append({"match": {localityMatch['idigbio']: hit['_source'][localityMatch['pbdb']]}})
-
-							pbdbMatchList.append({"match": {localityMatch['pbdb']: hit['_source'][localityMatch['pbdb']]}})
-							data['matchFields'][localityMatch['pbdb']] = hit['_source'][localityMatch['pbdb']]
-							recHash.update(data['matchFields'][localityMatch['pbdb']].encode('utf-8'))
-						else:
-							noMatch = True
-
-						# PBDB Taxon Matches
-						if hit['_source'][taxonMatch['pbdb']] is not None:
-
-							idbMatchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['pbdb']]}})
-							pbdbMatchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['pbdb']]}})
-							data['matchFields'][taxonMatch['pbdb']] = hit['_source'][taxonMatch['pbdb']]
-							recHash.update(data['matchFields'][taxonMatch['pbdb']])
-						else:
-							noMatch = True
-
-
-						# PBDB Chrono matching ( uses chronolookup index in ES )
-						matchChrono = []
-						chronoQuery = {
-							"query": {
-								"bool": {
-									"must": [
-										{ "range": { "start_ma": { "gte": hit['_source']['max_ma'] } } },
-										{ "range": { "end_ma": { "lte": hit['_source']['min_ma'] } } },
-										{ "match": { "level": chronoMatchLevel } }
-									]
+					elif queryIndex == 'pbdb':
+						sourceQuery = {
+							"query":{
+								"bool":{
+									"must": idbMatchList
 								}
 							}
 						}
 
-						chronoRes = self.es.search(index="chronolookup", body=chronoQuery)
+					matches['results'][hashRes]['fullSourceQuery'] = json.dumps(sourceQuery)
 
-						for chrono in chronoRes['hits']['hits']:
-							matchChrono.append(chrono['_source']['name'])
+				if hit["_type"] == 'idigbio':
+					sourceType = 'idigbio'
+					matchType = 'pbdb'
+				else:
+					sourceType = 'pbdb'
+					matchType = 'idigbio'
 
-						data['matchFields']['chronostratigraphy'] = matchChrono
-
-						if not matchChrono:
-							noMatch = True
-
-						pbdbMatchList.append({"range": {"min_ma": {"lte": hit['_source']['max_ma']}}})
-						pbdbMatchList.append({"range": {"max_ma": {"gte": hit['_source']['min_ma']}}})
-
-						recHash.update( str(matchChrono) )
-
-						linkID = hit['_source']['occurrence_no']
-						linkField = 'occurrence_no'
-
-						linkQuery = {
-							"size": 10,
-							"query": {
-								"bool": {
-									"must": idbMatchList,
-									"should": [
-										{ "terms": { chronoMatch['idigbio']['early']: matchChrono}},
-										{ "terms": { chronoMatch['idigbio']['late']: matchChrono}}
-									]
-								}
-							}
-						}
-						queryIndex = 'idigbio'
-
-					matches['search_after'] = json.dumps(hit["sort"])
-					hashRes = recHash.hexdigest()
-
-					if hashRes in matches['results']:
-						sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"], pbdbType)
-						matches['results'][hashRes]['sources'].append(sourceRow)
-					else:
-
-						# Resolve Reference, hardset the pbdb_type to refs
-						sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"], pbdbType)
-						matches['results'][hashRes] = {'fields': data['matchFields'], 'totalMatches': 0, 'matches': None, 'sources': [sourceRow], 'fullMatchQuery': None}
-						if noMatch is False:
-							linkResult = self.es.search(index=queryIndex, body=linkQuery)
-							totalMatches = linkResult['hits']['total']
-							if totalMatches > 0:
-								matches['results'][hashRes]['matches'] = []
-								for link in linkResult['hits']['hits']:
-									row = self.resolveReference(link['_source'], link['_id'], link['_type'], pbdbType)
-									row['score'] = link['_score']
-									row['type'] = link['_type']
-									matches['results'][hashRes]['matches'].append(row)
-									data['links'].append([link['_id'], link['_score'], link['_type']])
-
-								matches['results'][hashRes]['totalMatches'] = totalMatches
-								linkQuery['size'] = totalMatches
-								matches['results'][hashRes]['fullMatchQuery'] = json.dumps(linkQuery)
-							
-							matches['results'][hashRes]['fields'] = data['matchFields']
-
-						if queryIndex == 'idigbio':
-							sourceQuery = {
-								"query":{
-									"bool":{
-										"must": pbdbMatchList
-									}
-								}
-							}
-
-						elif queryIndex == 'pbdb':
-							sourceQuery = {
-								"query":{
-									"bool":{
-										"must": idbMatchList
-									}
-								}
-							}
-
-						matches['results'][hashRes]['fullSourceQuery'] = json.dumps(sourceQuery)
-
-					if hit["_type"] == 'idigbio':
-						sourceType = 'idigbio'
-						matchType = 'pbdb'
-					else:
-						sourceType = 'pbdb'
-						matchType = 'idigbio'
-
-					matches['results'][hashRes]['sourceType'] = sourceType
-					matches['results'][hashRes]['matchType'] = matchType
-		matches['queryInfo'] = {'idigbioTotal': idbRes['hits']['total'], 'pbdbTotal': pbdbRes['hits']['total']}
+				matches['results'][hashRes]['sourceType'] = sourceType
+				matches['results'][hashRes]['matchType'] = matchType
+		print idbRes
+		matches['queryInfo'] = {'idigbioTotal': idbRes['hits']['total'], 'pbdbTotal': pbdbRes['hits']['total'], 'matchCriteria': {'chronostratigraphyMatch': chronoMatch, 'taxonomyMatch': taxonMatch, 'localityMatch': localityMatch}}
 		return matches

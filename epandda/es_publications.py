@@ -57,7 +57,7 @@ class es_publications(elasticBasedResource):
 
 
             # Build queries based on passed in params
-            processed = self.processSearchTerms( params['terms'].split('|'), idigbioReplacements, pbdbReplacements)
+            processed = self.processSearchTerms(params, idigbioReplacements, pbdbReplacements)
 
             idbQuery = processed['idbQuery']
             pbdbQuery = processed['pbdbQuery']
@@ -110,6 +110,7 @@ class es_publications(elasticBasedResource):
             'maintainer': 'Jon Lauters',
             'maintainer_email': 'jon@epandda.org',
             'description': 'Searches PBDB and iDigBio for publication <=> specimen matches and returns match groups based on taxonomy, bibliograhy and locality',
+            'private': False,
             'params': [
                 {
                     "name": "terms",

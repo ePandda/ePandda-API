@@ -16,7 +16,7 @@ class es_occurrences(elasticBasedResource):
 
 		# iDigBio uses strange field names
 		idigbioReplacements = {'scientificname': 'dwc:scientificName', 'dwc:specificEpithet': 'species', 'genus': 'dwc:genus', 'family': 'dwc:family', 'order': 'dwc:order', 'class': 'dwc:class', 'phylum': 'dwc:phylum', 'kingdom': 'dwc:kingdom',
-		'locality': 'dwc:locality', 'county': 'dwc:county', 'state': 'dwc:stateProvince', 'country': 'dwc:country'}
+		'locality': 'dwc:locality', 'county': 'dwc:county', 'state': 'dwc:stateProvince', 'country': 'dwc:country', 'geopoint': 'idigbio:geoPoint'}
 
 		# There are a few PBDB edge cases too
 		pbdbReplacements = {'scientificname': 'accepted_name', 'country': 'cc1'}
@@ -27,12 +27,31 @@ class es_occurrences(elasticBasedResource):
 			returnMedia = False
 			if params['returnMedia'] and params['returnMedia'].lower() == 'true':
 				returnMedia = True
-			processed = self.processSearchTerms( params['terms'].split('|'), idigbioReplacements, pbdbReplacements)
+			processed = self.processSearchTerms(params, idigbioReplacements, pbdbReplacements)
 			idbQuery = processed['idbQuery']
 			pbdbQuery = processed['pbdbQuery']
 
-			idbRes = self.es.search(index="idigbio", body=idbQuery)
-			pbdbRes = self.es.search(index="pbdb", body=pbdbQuery)
+			if params['idigbioSearchFrom']:
+				idbQuery['search_after'] = json.loads('['+params['idigbioSearchFrom']+']')
+			if params['pbdbSearchFrom']:
+				pbdbQuery['search_after'] = json.loads('['+params['pbdbSearchFrom']+']')
+
+			# Add geo match filters
+			if params['geoPointFields']:
+				pbdbQuery, idbQuery = self.addGeoFilters(idbQuery, pbdbQuery, params['geoPointFields'])
+
+			idbRes = None
+			pbdbRes = None
+			if idbQuery:
+				idbRes = self.es.search(index="idigbio", body=idbQuery)
+			else:
+				idbRes = {'hits':{'total': 0}}
+			if pbdbQuery:
+				pbdbRes = self.es.search(index="pbdb", body=pbdbQuery)
+			else:
+				pbdbRes = {'hits':{'total': 0}}
+
+
 
 			matches = {'results': {}}
 
@@ -58,6 +77,7 @@ class es_occurrences(elasticBasedResource):
 			'maintainer': 'Michael Benowitz',
 			'maintainer_email': 'michael@epandda.org',
 			'description': 'Searches PBDB and iDigBio for occurrences and returns match groups based on taxonomy, chronostratigraphy and locality',
+			'private': False,
 			'params': [
 				{
 					"name": "terms",
@@ -100,11 +120,11 @@ class es_occurrences(elasticBasedResource):
 					"display": True
 				},
 				{
-					"name": "geoPointRadius",
-					"label": "Maximum Distance from Geopoint",
-					"type": "integer",
+					"name": "geoPointFields",
+					"label": "Search by georeference",
+					"type": "text",
 					"required": False,
-					"description": "The maximum radius, in km, to return results within if querying on a geoPoint field",
+					"description": "Search records by georeference, either by distance from a point, within a bounding box or within a polygon",
 					"display": True
 				},
 				{
@@ -131,4 +151,5 @@ class es_occurrences(elasticBasedResource):
 					"description": "Toggle to return any matching media from iDigBio",
 					"display": True
 				}
-			]}
+			]
+		}
