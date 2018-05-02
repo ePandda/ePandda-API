@@ -41,7 +41,7 @@ app.debug = True
 app.config['SECRET_KEY'] = config['auth_secret']
 cache_config = {'CACHE_TYPE': 'filesystem', 'CACHE_DIR': 'tmp'}
 cache = Cache(app, config=cache_config)
-api = Api(app, decorators=[cache.cached(timeout=600, key_prefix=make_cache_key, unless=bypass_caching)])
+api = Api(app, decorators=[cache.cached(timeout=43200, key_prefix=make_cache_key, unless=bypass_caching)])
 CORS(app)
 
 

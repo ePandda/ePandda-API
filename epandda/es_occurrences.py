@@ -157,6 +157,14 @@ class es_occurrences(elasticBasedResource):
 					"required": False,
 					"description": "Toggle to return any matching media from iDigBio",
 					"display": True
+				},
+				{
+					"name": "skipCache",
+					"label": "Skip Cache",
+					"type": "boolean",
+					"required": False,
+					"description": "By default ePandda caches results for 12 hours. To force the API to bypass this cache pass this parameter to retrieve a new dataset",
+					"display": True
 				}
 			]
 		}

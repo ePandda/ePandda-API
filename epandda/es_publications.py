@@ -172,5 +172,13 @@ class es_publications(elasticBasedResource):
 					"required": False,
 					"description": "This implements paging in a more effecient way in ElasticSearch. It should be provided the last return search result in order to request a subsequent page of search results",
 					"display": False
+				},
+				{
+					"name": "skipCache",
+					"label": "Skip Cache",
+					"type": "boolean",
+					"required": False,
+					"description": "By default ePandda caches results for 12 hours. To force the API to bypass this cache pass this parameter to retrieve a new dataset",
+					"display": True
 				}
             ]}
