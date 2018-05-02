@@ -48,8 +48,10 @@ class es_publications(elasticBasedResource):
             res = None
 
             # Elastic Search Pagination
-            if params['searchFrom']:
-                query['search_after'] = json.loads(params['searchFrom'])
+            if params['idigbioSearchAfter']:
+                idbQuery['search_after'] = json.loads(params['idigbioSearchAfter'].strip('"'))
+            if params['pbdbSearchAfter']:
+                pbdbQuery['search_after'] = json.loads(params['pbdbSearchAfter'].strip('"'))
 
             # Parse the search term parameter and get the initial result from ES
             if not params['terms']:
@@ -152,12 +154,20 @@ class es_publications(elasticBasedResource):
                     "description": "The geographic unit to use in matching records. Allowed values: geopoint|locality|county|state|country",
                     "display": True
                 },
-                {
-                    "name": "searchFrom",
-                    "label": "Last returned record to search from",
-                    "type": "text",
-                    "required": False,
-                    "description": "This implements paging in a more effecient way in ElasticSearch. It should be provided the last return search result in order to request a subsequent page of search results",
-                    "display": False
-                }
+				{
+					"name": "idigbioSearchAfter",
+					"label": "iDigBio ;ast returned record to search from",
+					"type": "text",
+					"required": False,
+					"description": "This implements paging in a more effecient way in ElasticSearch. It should be provided the last return search result in order to request a subsequent page of search results",
+					"display": False
+				},
+				{
+					"name": "pbdbSearchAfter",
+					"label": "PBDB last returned record to search from",
+					"type": "text",
+					"required": False,
+					"description": "This implements paging in a more effecient way in ElasticSearch. It should be provided the last return search result in order to request a subsequent page of search results",
+					"display": False
+				}
             ]}

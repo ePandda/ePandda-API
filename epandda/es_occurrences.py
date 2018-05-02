@@ -31,10 +31,10 @@ class es_occurrences(elasticBasedResource):
 			idbQuery = processed['idbQuery']
 			pbdbQuery = processed['pbdbQuery']
 
-			if params['idigbioSearchFrom']:
-				idbQuery['search_after'] = json.loads('['+params['idigbioSearchFrom']+']')
-			if params['pbdbSearchFrom']:
-				pbdbQuery['search_after'] = json.loads('['+params['pbdbSearchFrom']+']')
+			if params['idigbioSearchAfter']:
+				idbQuery['search_after'] = json.loads(params['idigbioSearchAfter'].strip('"'))
+			if params['pbdbSearchAfter']:
+				pbdbQuery['search_after'] = json.loads(params['pbdbSearchAfter'].strip('"'))
 
 			# Add geo match filters
 			if params['geoPointFields']:
@@ -43,7 +43,11 @@ class es_occurrences(elasticBasedResource):
 			idbRes = None
 			pbdbRes = None
 			if idbQuery:
-				idbRes = self.es.search(index="idigbio", body=idbQuery)
+				try:
+					idbRes = self.es.search(index="idigbio", body=idbQuery)
+				except Exception as e:
+					print e
+					return self.respondWithError("iDigBio search failed")
 			else:
 				idbRes = {'hits':{'total': 0}}
 			if pbdbQuery:
@@ -128,7 +132,7 @@ class es_occurrences(elasticBasedResource):
 					"display": True
 				},
 				{
-					"name": "idigbioSearchFrom",
+					"name": "idigbioSearchAfter",
 					"label": "iDigBio ;ast returned record to search from",
 					"type": "text",
 					"required": False,
@@ -136,7 +140,7 @@ class es_occurrences(elasticBasedResource):
 					"display": False
 				},
 				{
-					"name": "pbdbSearchFrom",
+					"name": "pbdbSearchAfter",
 					"label": "PBDB last returned record to search from",
 					"type": "text",
 					"required": False,

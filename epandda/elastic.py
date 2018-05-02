@@ -178,7 +178,6 @@ class elasticBasedResource(baseResource):
 
 		matches = {'results': {}}
 		for res in [pbdbRes, idbRes]:
-			print res
 			if res['hits']['total'] == 0:
 				continue
 
@@ -435,6 +434,5 @@ class elasticBasedResource(baseResource):
 
 				matches['results'][hashRes]['sourceType'] = sourceType
 				matches['results'][hashRes]['matchType'] = matchType
-		print idbRes
 		matches['queryInfo'] = {'idigbioTotal': idbRes['hits']['total'], 'pbdbTotal': pbdbRes['hits']['total'], 'matchCriteria': {'chronostratigraphyMatch': chronoMatch, 'taxonomyMatch': taxonMatch, 'localityMatch': localityMatch}}
 		return matches
