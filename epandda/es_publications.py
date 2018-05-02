@@ -65,8 +65,11 @@ class es_publications(elasticBasedResource):
             pbdbQuery = processed['pbdbQuery']
 
             # Query ES Indexes
-            pbdbRes = self.es.search(index="pbdb", body=pbdbQuery)
-            idbRes = self.es.search(index="idigbio", body=idbQuery)
+            try:
+                pbdbRes = self.es.search(index="pbdb", body=pbdbQuery)
+                idbRes = self.es.search(index="idigbio", body=idbQuery)
+            except Exception as e:
+                return self.respondWithError(errors)
 
             print "PBDB Query (Author, State, Phylum):"
             print pbdbQuery

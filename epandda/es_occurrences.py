@@ -23,7 +23,7 @@ class es_occurrences(elasticBasedResource):
 
 		if self.paramCount > 0:
 			res = None
-
+			errors = []
 			returnMedia = False
 			if params['returnMedia'] and params['returnMedia'].lower() == 'true':
 				returnMedia = True
@@ -46,16 +46,16 @@ class es_occurrences(elasticBasedResource):
 				try:
 					idbRes = self.es.search(index="idigbio", body=idbQuery)
 				except Exception as e:
-					print e
-					return self.respondWithError("iDigBio search failed")
+					errors.append("iDigBio search failed")
 			else:
 				idbRes = {'hits':{'total': 0}}
 			if pbdbQuery:
-				pbdbRes = self.es.search(index="pbdb", body=pbdbQuery)
+				try:
+					pbdbRes = self.es.search(index="pbdb", body=pbdbQuery)
+				except Exception as e:
+					errors.append("PBDB search failed")
 			else:
 				pbdbRes = {'hits':{'total': 0}}
-
-
 
 			matches = {'results': {}}
 
@@ -68,6 +68,9 @@ class es_occurrences(elasticBasedResource):
 			# Parse Chrono Match
 			# PBDB uses numeric min/max ma so we don't have to worry about that here
 			chronoMatch, chronoMatchLevel = self.getChronoMatch(params['chronoMatchLevel'])
+
+			if len(errors) > 0:
+				return self.respondWithError(errors)
 
 			matches = self.parseMatches(params, idbRes, pbdbRes, taxonMatch, localityMatch, chronoMatch, chronoMatchLevel, returnMedia=returnMedia)
 			return matches
