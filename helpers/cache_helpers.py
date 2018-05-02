@@ -9,3 +9,13 @@ def make_cache_key(*args, **kwargs):
     args_str = str(args.to_dict())
     cache_key = str(hashlib.md5(path+args_str).hexdigest())
     return cache_key
+
+#
+# Allow users to bypass cache by setting a parameter
+#
+def bypass_caching(*args, **kwargs):
+    path = request.path
+    args = request.args
+    if 'skipCache' in args and (args['skipCache'] == '1' or args['skipCache'].lower() == 'true'):
+        return True
+    return False

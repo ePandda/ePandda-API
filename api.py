@@ -22,7 +22,7 @@ from epandda import create_annotation
 from epandda import oauth
 from epandda import full_match_results
 
-from helpers.cache_helpers import make_cache_key
+from helpers.cache_helpers import make_cache_key, bypass_caching
 
 from flask_cors import CORS, cross_origin
 import sys
@@ -41,7 +41,7 @@ app.debug = True
 app.config['SECRET_KEY'] = config['auth_secret']
 cache_config = {'CACHE_TYPE': 'filesystem', 'CACHE_DIR': 'tmp'}
 cache = Cache(app, config=cache_config)
-api = Api(app, decorators=[cache.cached(timeout=600, key_prefix=make_cache_key)])
+api = Api(app, decorators=[cache.cached(timeout=600, key_prefix=make_cache_key, unless=bypass_caching)])
 CORS(app)
 
 
