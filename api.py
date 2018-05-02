@@ -5,10 +5,12 @@ import datetime
 import time
 import logging
 import urllib
+import hashlib
 from functools import wraps, update_wrapper
 from flask import Flask, request, current_app, make_response, session, escape, Response
 from flask_restful import Resource, Api
 from werkzeug.security import safe_str_cmp
+from flask_caching import Cache
 
 from epandda import banner
 from epandda import stats
@@ -19,6 +21,8 @@ from epandda import es_publications
 from epandda import create_annotation
 from epandda import oauth
 from epandda import full_match_results
+
+from helpers.cache_helpers import make_cache_key
 
 from flask_cors import CORS, cross_origin
 import sys
@@ -35,7 +39,9 @@ config = json.load(open('./config.json'));
 app = Flask(__name__)
 app.debug = True
 app.config['SECRET_KEY'] = config['auth_secret']
-api = Api(app)
+cache_config = {'CACHE_TYPE': 'filesystem', 'CACHE_DIR': 'tmp'}
+cache = Cache(app, config=cache_config)
+api = Api(app, decorators=[cache.cached(timeout=600, key_prefix=make_cache_key)])
 CORS(app)
 
 

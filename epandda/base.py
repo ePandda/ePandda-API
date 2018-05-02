@@ -13,6 +13,7 @@ from sources import paleobio
 from sources import paleobio_refs
 import re
 import annotation
+import hashlib
 
 #
 # Base class for API resource
