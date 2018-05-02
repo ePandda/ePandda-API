@@ -40,6 +40,16 @@ class stats(baseResource):
                     response['lastUpdated'] = lastUpdate.strftime('%Y-%m-%dT%H:%M:%S.000Z')
                     break
 
+            if params['recordFields']:
+                idigbioMap = self.es.indices.get_mapping('idigbio')
+                pbdbMap = self.es.indices.get_mapping('pbdb')
+                idbProps = idigbioMap['idigbio']['mappings']['idigbio']['properties']
+                pbdbProps = pbdbMap['pbdb3']['mappings']['pbdb']['properties']
+                response['metadataFields'] = {'idigbio': [], 'pbdb': []}
+                for props in [(idbProps, 'idigbio'), (pbdbProps, 'pbdb')]:
+                    for prop in props[0].iterkeys():
+                        response['metadataFields'][props[1]].append(prop)
+
             #localityIndex = endpoints.localityIndex
             #for place in ['countries', 'stateProvinces', 'counties', 'localities']:
             #	if params[place]:
@@ -75,41 +85,6 @@ class stats(baseResource):
             'private': False,
             'params': [
             {
-                "name": "stateProvinces",
-                "label": "States/Provinces",
-                "type": "boolean",
-                "required": False,
-                "description": "The number of unique states represented in the collections"
-            },
-            {
-                "name": "countries",
-                "label": "Countries",
-                "type": "boolean",
-                "required": False,
-                "description": "The number of unique countries represented in the collections"
-            },
-            {
-                "name": "counties",
-                "label": "Counties",
-                "type": "boolean",
-                "required": False,
-                "description": "The number of unique counties represented in the collections"
-            },
-            {
-                "name": "localities",
-                "label": "Localities",
-                "type": "boolean",
-                "required": False,
-                "description": "The number of unique localities represented in the collections"
-            },
-            {
-                "name": "geoPoints",
-                "label": "Geographic Coordinates",
-                "type": "boolean",
-                "required": False,
-                "description": "The number of unique geographic coordinates represented in the collections"
-            },
-            {
                 "name": "totalRecords",
                 "label": "Total Records",
                 "type": "boolean",
@@ -124,11 +99,11 @@ class stats(baseResource):
                 "description": "The last time an update was run to import new records from iDigBio or PBDB"
             },
             {
-                "name": "taxonomies",
-                "label": "Taxonomies",
+                "name": "recordFields",
+                "label": "Metadata Fields",
                 "type": "boolean",
                 "required": False,
-                "description": "The number of unique taxonomic hierarchies represented in the collections"
+                "description": "Returns a list of the queryable fields from iDigBio and PBDB"
             }
             ]
         }

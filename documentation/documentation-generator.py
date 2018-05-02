@@ -60,7 +60,6 @@ if banner.status_code == 200:
 				rows = []
 
 				for param in params['params']:
-					print param
 					param_name = param['name'] if 'name' in param else ''
 					param_type = param['type'] if 'type' in param else ''
 					param_label = param['label'] if 'label' in param else ''
@@ -93,8 +92,58 @@ if banner.status_code == 200:
 
 	point_html = ' '.join(end_sections)
 
+
+field_head = '''
+<div class="row">
+	<div id="field-header" class="col-12">
+		<h2>Metadata Fields</h2>
+	</div>
+</div>
+'''
+
+field_res = requests.get("http://localhost:5000/stats?recordFields=true")
+if field_res.status_code == 200:
+	field_json = field_res.json()
+
+	sources = field_json['results']['metadataFields']
+	tables = []
+	for source in sources:
+		table_head = '''
+			<div class="row">
+				<div class="col-12">
+					<h3 class="metadataFieldHeader">{0}</h3>
+					<table class="parameterTable">
+		'''.format(source.upper())
+		fields = sources[source]
+		fields.sort()
+		rows = []
+		cell_count = 0
+		for field in fields:
+			if cell_count == 0:
+				row_html = "<tr>"
+			row_html += "<td>{0}</td>".format(field)
+			if cell_count == 3:
+				row_html += "</tr>"
+				rows.append(row_html)
+				cell_count = 0
+				continue
+			cell_count += 1
+
+		table_html = ' '.join(rows)
+
+		table_head += table_html
+		table_head += '''
+					</table>
+				</div>
+			</div>
+		'''
+		tables.append(table_head)
+
+	metadata_tables = ' '.join(tables)
+
+
 doc_end = '''
 </section>
 '''
-full_html = ' '.join([endpoint_doc, point_html, doc_end])
+full_html = ' '.join([endpoint_doc, point_html, field_head, metadata_tables, doc_end])
 doc.write(full_html)
