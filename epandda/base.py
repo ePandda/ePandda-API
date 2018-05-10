@@ -542,7 +542,6 @@ class baseResource(Resource):
     #
     def respondWithError(self, errors):
         names = self.getParameterNames()
-
         # process errors, omitting ones not related to a parameter or GENERAL (the generic error heading)
         errors_filtered = {}
         if type(errors) is int:
@@ -560,7 +559,6 @@ class baseResource(Resource):
                         errors_filtered[i] = [errors[i]]
                 else:
                     errors_filtered[i] = "Unknown error: " + errors
-
         if self.returnResponse:
             return Response(json.dumps({"errors": errors_filtered}, sort_keys=True, indent=4, separators=(',', ': ')).encode('utf8'), status=500, mimetype="text/json")
         else:

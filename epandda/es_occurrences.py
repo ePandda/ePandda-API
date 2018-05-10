@@ -23,7 +23,7 @@ class es_occurrences(elasticBasedResource):
 
 		if self.paramCount > 0:
 			res = None
-			errors = []
+			errors = {"GENERAL": []}
 			returnMedia = False
 			if params['returnMedia'] and params['returnMedia'].lower() == 'true':
 				returnMedia = True
@@ -39,24 +39,22 @@ class es_occurrences(elasticBasedResource):
 			# Add geo match filters
 			if params['geoPointFields']:
 				pbdbQuery, idbQuery = self.addGeoFilters(idbQuery, pbdbQuery, params['geoPointFields'])
-
 			idbRes = None
 			pbdbRes = None
 			if idbQuery:
 				try:
 					idbRes = self.es.search(index="idigbio", body=idbQuery)
 				except Exception as e:
-					errors.append("iDigBio search failed")
+					errors['GENERAL'].append("iDigBio search failed")
 			else:
 				idbRes = {'hits':{'total': 0}}
 			if pbdbQuery:
 				try:
 					pbdbRes = self.es.search(index="pbdb", body=pbdbQuery)
 				except Exception as e:
-					errors.append("PBDB search failed")
+					errors['GENERAL'].append("PBDB search failed")
 			else:
 				pbdbRes = {'hits':{'total': 0}}
-
 			matches = {'results': {}}
 
 			# Parse locality Match
@@ -68,8 +66,7 @@ class es_occurrences(elasticBasedResource):
 			# Parse Chrono Match
 			# PBDB uses numeric min/max ma so we don't have to worry about that here
 			chronoMatch, chronoMatchLevel = self.getChronoMatch(params['chronoMatchLevel'])
-
-			if len(errors) > 0:
+			if len(errors["GENERAL"]) > 0:
 				return self.respondWithError(errors)
 
 			matches = self.parseMatches(params, idbRes, pbdbRes, taxonMatch, localityMatch, chronoMatch, chronoMatchLevel, returnMedia=returnMedia)
