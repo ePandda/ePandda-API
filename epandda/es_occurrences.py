@@ -6,7 +6,6 @@ import hashlib
 #
 class es_occurrences(elasticBasedResource):
 	def process(self):
-
 		# returns dictionary of params as defined in endpoint description
 		# will throw exception if required param is not present
 		params = self.getParams()
@@ -20,7 +19,6 @@ class es_occurrences(elasticBasedResource):
 
 		# There are a few PBDB edge cases too
 		pbdbReplacements = {'scientificname': 'accepted_name', 'country': 'cc1'}
-
 		if self.paramCount > 0:
 			res = None
 			errors = {"GENERAL": []}

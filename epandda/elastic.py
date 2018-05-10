@@ -20,9 +20,7 @@ class elasticBasedResource(baseResource):
 
 	def processSearchTerms(self, params, idigbioReplacements, pbdbReplacements):
 
-		searchTerms = params['terms'].split('|')
 		limit = self.limit()
-
 		idbQuery = {
 		   "size": limit,
 		   "query":{
@@ -50,10 +48,15 @@ class elasticBasedResource(baseResource):
 		}
 
 		processed = {'idbQuery': idbQuery, 'pbdbQuery': pbdbQuery }
+		if params['terms'] == None:
+			processed['idbQuery']['query']['bool']['must'].append({'match_all': {}})
+			processed['pbdbQuery']['query']['bool']['must'].append({'match_all': {}})
+			return processed
+
+		searchTerms = params['terms'].split('|')
 		for search in searchTerms:
 				pbdbAdded = False
 				idbAdded = False
-
 				try:
 					field, term = search.split(':')
 				except ValueError:
@@ -152,7 +155,7 @@ class elasticBasedResource(baseResource):
 				taxonMatch['idigbio'] = idigbioReplacements[matchLevel]
 			else:
 				taxonMatch['idigbio'] = 'dwc:' + matchLevel
-			if params['taxonMatchLevel'] in pbdbReplacements:
+			if matchLevel in pbdbReplacements:
 				taxonMatch['pbdb'] = pbdbReplacements[matchLevel]
 			else:
 				taxonMatch['pbdb'] = matchLevel
@@ -381,6 +384,10 @@ class elasticBasedResource(baseResource):
 
 				if hashRes in matches['results']:
 					sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"], pbdbType)
+					if returnMedia and hit['_type'] == 'idigbio' and sourceRow['idigbio:hasImage'] == 'true':
+						mediaFiles = self._queryMedia(sourceRow['idigbio:uuid'])
+						if mediaFiles:
+							sourceRow['mediaURLs'] = mediaFiles
 					matches['results'][hashRes]['sources'].append(sourceRow)
 				else:
 
@@ -394,6 +401,10 @@ class elasticBasedResource(baseResource):
 							matches['results'][hashRes]['matches'] = []
 							for link in linkResult['hits']['hits']:
 								row = self.resolveReference(link['_source'], link['_id'], link['_type'], pbdbType)
+								if returnMedia and link['_type'] == 'idigbio' and row['idigbio:hasImage'] == 'true':
+									mediaFiles = self._queryMedia(row['idigbio:uuid'])
+									if mediaFiles:
+										row['mediaURLs'] = mediaFiles
 								row['score'] = link['_score']
 								row['type'] = link['_type']
 								matches['results'][hashRes]['matches'].append(row)
