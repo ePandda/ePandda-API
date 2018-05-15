@@ -133,7 +133,7 @@ class es_publications(elasticBasedResource):
             'name': 'Publications Index',
             'maintainer': 'Jon Lauters',
             'maintainer_email': 'jon@epandda.org',
-            'description': 'Searches PBDB and iDigBio for publication <=> specimen matches and returns match groups based on taxonomy, bibliograhy and locality',
+            'description': 'Searches PBDB and iDigBio for publication <=> specimen matches and returns match groups based on taxonomy, bibliography and locality',
             'private': False,
             'params': [
                 {
