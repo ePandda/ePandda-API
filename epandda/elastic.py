@@ -55,45 +55,47 @@ class elasticBasedResource(baseResource):
 
 		searchTerms = params['terms'].split('|')
 		for search in searchTerms:
-				pbdbAdded = False
-				idbAdded = False
-				try:
-					field, term = search.split(':')
-				except ValueError:
-					errmsg = "You provided a malformed terms query. Please ensure that this parameter is comprised of one or more field:term pairs separated by pipes (|)"
-					return self.respondWithError( errmsg )
+			pbdbAdded = False
+			idbAdded = False
+			try:
+				field, term = search.split(':')
+			except ValueError:
+				# Without a field component we treat this as a query against all fields
+				field = None
+				term = search
+				processed['idbQuery']['query']['bool']['must'].append({"query_string": {"query": term}})
+				processed['pbdbQuery']['query']['bool']['must'].append({"query_string": {"query": term}})
+				idbAdded = True
+				pbdbAdded = True
+			# Translate terms for iDigBio
+			if field in idigbioReplacements:
+				processed['idbQuery']['query']['bool']['must'].append({"match": {idigbioReplacements[field]: term}})
+				idbAdded = True
+			# Translate terms for PBDB
+			if field in pbdbReplacements:
+				if field == 'country':
+					ccParts = term.split(' ')
+					for i in range(len(ccParts)):
+						ccParts[i] = ccParts[i][0].upper() + ccParts[i][1:]
 
-				# Translate terms for iDigBio
-				if field in idigbioReplacements:
-					processed['idbQuery']['query']['bool']['must'].append({"match": {idigbioReplacements[field]: term}})
-					idbAdded = True
+					countryTerm = ' '.join(ccParts)
 
-				# Translate terms for PBDB
-				if field in pbdbReplacements:
-					if field == 'country':
+					try:
+						country = pycountry.countries.get(name=countryTerm)
+						countryCode = country.alpha_2
+						term = countryCode
+					except KeyError:
+						errmsg = "The country provided in the terms query could not be found. Please check your query and provide a valid country name"
+						return self.respondWithError(errmsg)
 
-						ccParts = term.split(' ')
-						for i in range(len(ccParts)):
-							ccParts[i] = ccParts[i][0].upper() + ccParts[i][1:]
+				processed['pbdbQuery']['query']['bool']['must'].append({"match": {pbdbReplacements[field]: term}})
+				pbdbAdded = True
 
-						countryTerm = ' '.join(ccParts)
-
-						try:
-							country = pycountry.countries.get(name=countryTerm)
-							countryCode = country.alpha_2
-							term = countryCode
-						except KeyError:
-							errmsg = "The country provided in the terms query could not be found. Please check your query and provide a valid country name"
-							return self.respondWithError(errmsg)
-
-					processed['pbdbQuery']['query']['bool']['must'].append({"match": {pbdbReplacements[field]: term}})
-					pbdbAdded = True
-
-				# Add Translated Terms to ES Query
-				if idbAdded is False:
-					processed['idbQuery']['query']['bool']['must'].append({"match": {field: term}})
-				if pbdbAdded is False:
-					processed['pbdbQuery']['query']['bool']['must'].append({"match": {field: term}})
+			# Add Translated Terms to ES Query
+			if idbAdded is False:
+				processed['idbQuery']['query']['bool']['must'].append({"match": {field: term}})
+			if pbdbAdded is False:
+				processed['pbdbQuery']['query']['bool']['must'].append({"match": {field: term}})
 
 		# Default query if no params were given
 		if len(processed['idbQuery']['query']['bool']['must']) == 0:
