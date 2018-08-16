@@ -179,9 +179,11 @@ class elasticBasedResource(baseResource):
 			chronoMatchLevel = 'period'
 		return chronoMatch, chronoMatchLevel
 
-	def parseMatches(self, params, idbRes, pbdbRes, taxonMatch, localityMatch, chronoMatch, chronoMatchLevel, returnMedia=False, pbdbType='occs'):
+	def parseMatches(self, params, idbRes, pbdbRes, taxonMatch, localityMatch, chronoMatch, chronoMatchLevel, returnMedia=False, mediaOnly=True, pbdbType='occs'):
 
 		matches = {'results': {}}
+		if mediaOnly:
+			mediaMatches = {'mediaURLs': []}
 		for res in [pbdbRes, idbRes]:
 			if res['hits']['total'] == 0:
 				continue
@@ -389,8 +391,12 @@ class elasticBasedResource(baseResource):
 					if returnMedia and hit['_type'] == 'idigbio' and sourceRow['idigbio:hasImage'] == 'true':
 						mediaFiles = self._queryMedia(sourceRow['idigbio:uuid'])
 						if mediaFiles:
-							sourceRow['mediaURLs'] = mediaFiles
-					matches['results'][hashRes]['sources'].append(sourceRow)
+							if mediaOnly:
+								mediaMatches['mediaURLs'].extend(mediaFiles)
+							else:
+								sourceRow['mediaURLs'] = mediaFiles
+					if not mediaOnly:
+						matches['results'][hashRes]['sources'].append(sourceRow)
 				else:
 
 					# Resolve Reference, hardset the pbdb_type to refs
@@ -406,37 +412,47 @@ class elasticBasedResource(baseResource):
 								if returnMedia and link['_type'] == 'idigbio' and row['idigbio:hasImage'] == 'true':
 									mediaFiles = self._queryMedia(row['idigbio:uuid'])
 									if mediaFiles:
-										row['mediaURLs'] = mediaFiles
-								row['score'] = link['_score']
-								row['type'] = link['_type']
-								matches['results'][hashRes]['matches'].append(row)
-								data['links'].append([link['_id'], link['_score'], link['_type']])
+										if mediaOnly:
+											mediaMatches['mediaURLs'].extend(mediaFiles)
+										else:
+											sourceRow['mediaURLs'] = mediaFiles
+								if not mediaOnly:
+									row['score'] = link['_score']
+									row['type'] = link['_type']
+									matches['results'][hashRes]['matches'].append(row)
+									data['links'].append([link['_id'], link['_score'], link['_type']])
 
-							matches['results'][hashRes]['totalMatches'] = totalMatches
-							linkQuery['size'] = totalMatches
-							matches['results'][hashRes]['fullMatchQuery'] = json.dumps(linkQuery)
+							if not mediaOnly:
+								matches['results'][hashRes]['totalMatches'] = totalMatches
+								linkQuery['size'] = totalMatches
+								matches['results'][hashRes]['fullMatchQuery'] = json.dumps(linkQuery)
 
-						matches['results'][hashRes]['fields'] = data['matchFields']
+						if not mediaOnly:
+							matches['results'][hashRes]['fields'] = data['matchFields']
 
-					if queryIndex == 'idigbio':
-						sourceQuery = {
-							"query":{
-								"bool":{
-									"must": pbdbMatchList
+					if not mediaOnly:
+						if queryIndex == 'idigbio':
+							sourceQuery = {
+								"query":{
+									"bool":{
+										"must": pbdbMatchList
+									}
 								}
 							}
-						}
 
-					elif queryIndex == 'pbdb':
-						sourceQuery = {
-							"query":{
-								"bool":{
-									"must": idbMatchList
+						elif queryIndex == 'pbdb':
+							sourceQuery = {
+								"query":{
+									"bool":{
+										"must": idbMatchList
+									}
 								}
 							}
-						}
 
-					matches['results'][hashRes]['fullSourceQuery'] = json.dumps(sourceQuery)
+						matches['results'][hashRes]['fullSourceQuery'] = json.dumps(sourceQuery)
+
+				if mediaOnly:
+					continue
 
 				if hit["_type"] == 'idigbio':
 					sourceType = 'idigbio'
@@ -447,5 +463,9 @@ class elasticBasedResource(baseResource):
 
 				matches['results'][hashRes]['sourceType'] = sourceType
 				matches['results'][hashRes]['matchType'] = matchType
+
+		if mediaOnly:
+			mediaMatches['queryInfo'] = {'matchCriteria': {'chronostratigraphyMatch': chronoMatch, 'taxonomyMatch': taxonMatch, 'localityMatch': localityMatch}, 'total': len(mediaMatches['mediaURLs'])}
+			return mediaMatches
 		matches['queryInfo'] = {'idigbioTotal': idbRes['hits']['total'], 'pbdbTotal': pbdbRes['hits']['total'], 'matchCriteria': {'chronostratigraphyMatch': chronoMatch, 'taxonomyMatch': taxonMatch, 'localityMatch': localityMatch}}
 		return matches

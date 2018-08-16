@@ -12,7 +12,7 @@ class es_occurrences(elasticBasedResource):
 		# offset and limit returned as ints with default if not set
 		offset = self.offset()
 		limit = self.limit()
-		
+
 		format = self.format()
 
 		# iDigBio uses strange field names
@@ -25,8 +25,11 @@ class es_occurrences(elasticBasedResource):
 			res = None
 			errors = {"GENERAL": []}
 			returnMedia = False
+			mediaOnly = False
 			if params['returnMedia'] and params['returnMedia'].lower() == 'true':
 				returnMedia = True
+			if params['mediaOnly'] and params['mediaOnly'].lower() == 'true':
+				mediaOnly = True
 			processed = self.processSearchTerms(params, idigbioReplacements, pbdbReplacements)
 			idbQuery = processed['idbQuery']
 			pbdbQuery = processed['pbdbQuery']
@@ -69,7 +72,7 @@ class es_occurrences(elasticBasedResource):
 			if len(errors["GENERAL"]) > 0:
 				return self.respondWithError(errors)
 
-			matches = self.parseMatches(params, idbRes, pbdbRes, taxonMatch, localityMatch, chronoMatch, chronoMatchLevel, returnMedia=returnMedia)
+			matches = self.parseMatches(params, idbRes, pbdbRes, taxonMatch, localityMatch, chronoMatch, chronoMatchLevel, returnMedia=returnMedia, mediaOnly=mediaOnly)
 			return matches
 		else:
 			return self.respondWithDescription()
@@ -153,6 +156,14 @@ class es_occurrences(elasticBasedResource):
 					"type": "boolean",
 					"required": False,
 					"description": "Toggle to return any matching media from iDigBio",
+					"display": True
+				},
+				{
+					"name": "mediaOnly",
+					"label": "Return only media records from iDigBio",
+					"type": "boolean",
+					"required": False,
+					"description": "Set to return only media records from iDigBio that match your results",
 					"display": True
 				},
 				{
