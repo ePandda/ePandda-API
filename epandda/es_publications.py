@@ -141,7 +141,7 @@ class es_publications(elasticBasedResource):
                     "label": "Search terms",
                     "type": "text",
                     "required": False,
-                    "description": "Search field and term pairs. Formatted in a pipe delimited list with field and term separated by a colon. For example: genus:hadrosaurus|country:united states",
+		    "description": "The main search field. A simple query can be made on any taxonomic term, to query a specific field provide field and term pairs formatted in a pipe delimited list with field and term separated by a colon. For example: genus:hadrosaurus|country:united states",
                     "display": True
                 },
                 {

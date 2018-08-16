@@ -12,7 +12,7 @@ class elasticBasedResource(baseResource):
 	def _queryMedia(self, coreid):
 		mediaURLs = []
 		mediaQuery = {"query": {"term": {"coreid.keyword": coreid}}}
-		mediaRes = self.es.search(index="idigbio_media", body=mediaQuery)
+		mediaRes = self.es.search(index="idigbio_media2", body=mediaQuery)
 		if mediaRes:
 			for media in mediaRes['hits']['hits']:
 				mediaURLs.append(media['_source']['ac:accessURI'])

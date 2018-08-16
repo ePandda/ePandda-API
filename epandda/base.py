@@ -358,6 +358,18 @@ class baseResource(Resource):
         return 10 if self.params['limit'] is None else int(self.params['limit'])
 
     #
+    # Get return format
+    #
+    def format(self):
+        if self.params is None or self.params.get('format') is None:
+            return 'JSON'
+        if self.params['format'] == 'CSV':
+            return 'CSV'
+        if self.params['format'] == 'TAB':
+            return 'TAB'
+        return 'JSON'
+
+    #
     # Default description block for endpoints that don't describe themselves
     #
     def description(self):

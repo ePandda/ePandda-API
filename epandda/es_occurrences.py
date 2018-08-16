@@ -12,10 +12,12 @@ class es_occurrences(elasticBasedResource):
 		# offset and limit returned as ints with default if not set
 		offset = self.offset()
 		limit = self.limit()
+		
+		format = self.format()
 
 		# iDigBio uses strange field names
 		idigbioReplacements = {'scientificname': 'dwc:scientificName', 'dwc:specificEpithet': 'species', 'genus': 'dwc:genus', 'family': 'dwc:family', 'order': 'dwc:order', 'class': 'dwc:class', 'phylum': 'dwc:phylum', 'kingdom': 'dwc:kingdom',
-		'locality': 'dwc:locality', 'county': 'dwc:county', 'state': 'dwc:stateProvince', 'country': 'dwc:country', 'geopoint': 'idigbio:geoPoint'}
+		'locality': 'dwc:locality', 'county': 'dwc:county', 'state': 'dwc:stateProvince', 'country': 'dwc:country', 'geopoint': 'idigbio:geoPoint', 'basisofrecord': 'dwc:basisOfRecord', 'latestepochorhighestseries': 'dwc:latestEpochOrHighestSeries', 'earliestepochorlowestseries': 'dwc:earliestEpochOrLowestSeries'}
 
 		# There are a few PBDB edge cases too
 		pbdbReplacements = {'scientificname': 'accepted_name', 'country': 'cc1'}
@@ -86,7 +88,7 @@ class es_occurrences(elasticBasedResource):
 					"label": "Search terms",
 					"type": "text",
 					"required": False,
-					"description": "Search field and term pairs. Formatted in a pipe delimited list with field and term separated by a colon. For example: genus:hadrosaurus|country:united states",
+					"description": "The main search field. A simple query can be made on any taxonomic term, to query a specific field provide field and term pairs formatted in a pipe delimited list with field and term separated by a colon. For example: genus:hadrosaurus|country:united states",
 					"display": True
 				},
 				{
@@ -159,6 +161,14 @@ class es_occurrences(elasticBasedResource):
 					"type": "boolean",
 					"required": False,
 					"description": "By default ePandda caches results for 12 hours. To force the API to bypass this cache pass this parameter to retrieve a new dataset",
+					"display": True
+				},
+				{
+					"name": "format",
+					"label": "Data format",
+					"type": "string",
+					"required": False,
+					"description": "Format of return data. Default is JSON. Other possible values are CSV, TAB.",
 					"display": True
 				}
 			]
