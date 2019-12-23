@@ -56,8 +56,8 @@ class full_match_results(mongoBasedResource):
     def description(self):
 		return {
 			'name': 'Full Result Response',
-			'maintainer': 'Michael Benowitz',
-			'maintainer_email': 'michael@epandda.org',
+			'maintainer': 'Seth Kaufman',
+			'maintainer_email': 'seth@epandda.org',
 			'description': 'Returns full data sets for matching criteria returned from the main Occurrence endpoint',
             'private': False,
 			'params': [
