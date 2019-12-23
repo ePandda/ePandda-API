@@ -16,7 +16,7 @@ class es_occurrences(elasticBasedResource):
 		format = self.format()
 
 		# iDigBio uses strange field names
-		idigbioReplacements = {'scientificname': 'dwc:scientificName', 'dwc:specificEpithet': 'species', 'genus': 'dwc:genus', 'family': 'dwc:family', 'order': 'dwc:order', 'class': 'dwc:class', 'phylum': 'dwc:phylum', 'kingdom': 'dwc:kingdom',
+		idigbioReplacements = {'scientificname': 'dwc:scientificName', 'species': 'dwc:specificepithet', 'genus': 'dwc:genus', 'family': 'dwc:family', 'order': 'dwc:order', 'class': 'dwc:class', 'phylum': 'dwc:phylum', 'kingdom': 'dwc:kingdom',
 		'locality': 'dwc:locality', 'county': 'dwc:county', 'state': 'dwc:stateProvince', 'country': 'dwc:country', 'geopoint': 'idigbio:geoPoint', 'basisofrecord': 'dwc:basisOfRecord', 'latestepochorhighestseries': 'dwc:latestEpochOrHighestSeries', 'earliestepochorlowestseries': 'dwc:earliestEpochOrLowestSeries'}
 
 		# There are a few PBDB edge cases too
@@ -26,10 +26,11 @@ class es_occurrences(elasticBasedResource):
 			errors = {"GENERAL": []}
 			returnMedia = False
 			mediaOnly = False
-			if params['returnMedia'] and params['returnMedia'].lower() == 'true':
+			if params['returnMedia'] and (params['returnMedia'].lower() == 'true' or int(params['returnMedia']) == 1):
 				returnMedia = True
-			if params['mediaOnly'] and params['mediaOnly'].lower() == 'true':
+			if params['mediaOnly'] and (params['mediaOnly'].lower() == 'true' or int(params['mediaOnly']) == 1):
 				mediaOnly = True
+				returnMedia = True
 			processed = self.processSearchTerms(params, idigbioReplacements, pbdbReplacements)
 			idbQuery = processed['idbQuery']
 			pbdbQuery = processed['pbdbQuery']
@@ -81,8 +82,8 @@ class es_occurrences(elasticBasedResource):
 	def description(self):
 		return {
 			'name': 'Occurrence Index',
-			'maintainer': 'Michael Benowitz',
-			'maintainer_email': 'michael@epandda.org',
+			'maintainer': 'Seth Kaufman',
+			'maintainer_email': 'seth@epandda.org',
 			'description': 'Searches PBDB and iDigBio for occurrences and returns match groups based on taxonomy, chronostratigraphy and locality',
 			'private': False,
 			'params': [
@@ -92,7 +93,8 @@ class es_occurrences(elasticBasedResource):
 					"type": "text",
 					"required": False,
 					"description": "The main search field. A simple query can be made on any taxonomic term, to query a specific field provide field and term pairs formatted in a pipe delimited list with field and term separated by a colon. For example: genus:hadrosaurus|country:united states",
-					"display": True
+					"display": True,
+					"formGroup": "search"
 				},
 				{
 					"name": "matchOn",
@@ -100,7 +102,9 @@ class es_occurrences(elasticBasedResource):
 					"type": "text",
 					"required": False,
 					"description": "By default this matches records based on locality, taxonomy and chronostratigraphy. Set this parameter to skip matching on one of these fields",
-					"display": True
+					"display": True,
+					"formGroup": "match",
+					"validOptions": ["locality", "taxonomy", "chronostratigraphy"]
 				},
 				{
 					"name": "chronoMatchLevel",
@@ -108,7 +112,9 @@ class es_occurrences(elasticBasedResource):
 					"type": "text",
 					"required": False,
 					"description": "The geologic time unit to use in matching records. Allowed values: age|epoch|period|era",
-					"display": True
+					"display": True,
+					"formGroup": "match",
+					"validOptions": ["age", "epoch", "period", "era"]
 				},
 				{
 					"name": "taxonMatchLevel",
@@ -116,7 +122,9 @@ class es_occurrences(elasticBasedResource):
 					"type": "text",
 					"required": False,
 					"description": "The taxonomic rank to use in matching records. Allowed values: scientificName|genus|family|order|class|phylum|kingdom",
-					"display": True
+					"display": True,
+					"formGroup": "match",
+					"validOptions": ["scientificName", "genus", "family", "order", "class", "phylum", "kingdom"]
 				},
 				{
 					"name": "localityMatchLevel",
@@ -124,7 +132,9 @@ class es_occurrences(elasticBasedResource):
 					"type": "text",
 					"required": False,
 					"description": "The geographic unit to use in matching records. Allowed values: geopoint|locality|county|state|country",
-					"display": True
+					"display": True,
+					"formGroup": "match",
+					"validOptions": ["geopoint", "locality", "county", "state", "country"]
 				},
 				{
 					"name": "geoPointFields",
@@ -132,15 +142,17 @@ class es_occurrences(elasticBasedResource):
 					"type": "text",
 					"required": False,
 					"description": "Search records by georeference, either by distance from a point, within a bounding box or within a polygon",
-					"display": True
+					"display": True,
+					"formGroup": "search"
 				},
 				{
 					"name": "idigbioSearchAfter",
-					"label": "iDigBio ;ast returned record to search from",
+					"label": "iDigBio last returned record to search from",
 					"type": "text",
 					"required": False,
 					"description": "This implements paging in a more effecient way in ElasticSearch. It should be provided the last return search result in order to request a subsequent page of search results",
-					"display": False
+					"display": False,
+					"formGroup": "none"
 				},
 				{
 					"name": "pbdbSearchAfter",
@@ -148,7 +160,8 @@ class es_occurrences(elasticBasedResource):
 					"type": "text",
 					"required": False,
 					"description": "This implements paging in a more effecient way in ElasticSearch. It should be provided the last return search result in order to request a subsequent page of search results",
-					"display": False
+					"display": False,
+					"formGroup": "none"
 				},
 				{
 					"name": "returnMedia",
@@ -156,7 +169,8 @@ class es_occurrences(elasticBasedResource):
 					"type": "boolean",
 					"required": False,
 					"description": "Toggle to return any matching media from iDigBio",
-					"display": True
+					"display": True,
+					"formGroup": "search"
 				},
 				{
 					"name": "mediaOnly",
@@ -164,7 +178,8 @@ class es_occurrences(elasticBasedResource):
 					"type": "boolean",
 					"required": False,
 					"description": "Set to return only media records from iDigBio that match your results",
-					"display": True
+					"display": True,
+					"formGroup": "search"
 				},
 				{
 					"name": "skipCache",
@@ -172,15 +187,18 @@ class es_occurrences(elasticBasedResource):
 					"type": "boolean",
 					"required": False,
 					"description": "By default ePandda caches results for 12 hours. To force the API to bypass this cache pass this parameter to retrieve a new dataset",
-					"display": True
+					"display": True,
+					"formGroup": "settings"
 				},
 				{
 					"name": "format",
 					"label": "Data format",
-					"type": "string",
+					"type": "text",
 					"required": False,
 					"description": "Format of return data. Default is JSON. Other possible values are CSV, TAB.",
-					"display": True
+					"display": True,
+					"formGroup": "settings",
+					"validOptions": ["JSON", "CSV", "TAB"]
 				}
 			]
 		}

@@ -211,68 +211,98 @@ class publications(mongoBasedResource):
                     "label": "Scientific Name",
                     "type": "text",
                     "required": False,
-                    "description": "Taxon to search occurrence records for"
+                    "description": "Taxon to search occurrence records for",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "journal",
                     "label": "Journal",
                     "type": "text",
                     "required": False,
-                    "description": "Then name of academic Journal a publication would be found"
+                    "description": "Then name of academic Journal a publication would be found",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "article",
                     "label": "Article",
                     "type": "text",
                     "required": False,
-                    "description": "The name of the journal article the given scientific_name appears in"
+                    "description": "The name of the journal article the given scientific_name appears in",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "author",
                     "label": "Author",
                     "type": "text",
                     "required": False,
-                    "description": "The name of the author who's article describes the given scientific_name"
+                    "description": "The name of the author who's article describes the given scientific_name",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "stateProvinceName",
                     "label": "State/Province",
                     "type": "text",
                     "required": False,
-                    "description": "The state/province to search for scientific_name and publication references"
+                    "description": "The state/province to search for scientific_name and publication references",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "countryName",
                     "label": "Country",
                     "type": "text",
                     "required": False,
-                    "description": "The Country Name to search for publication references and specimens in"
+                    "description": "The Country Name to search for publication references and specimens in",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "county",
                     "label": "County",
                     "type": "text",
                     "required": False,
-                    "description": "The county to search for scientific_name and publication references"
+                    "description": "The county to search for scientific_name and publication references",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "locality",
                     "label": "Locality",
                     "type": "text",
                     "required": False,
-                    "description": "The locality name to search for scientific_name occurences and publication references"
+                    "description": "The locality name to search for scientific_name occurences and publication references",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "includeAnnotations",
                     "label": "Include Annotations",
                     "type": "boolean",
                     "required": False,
-                    "description": "Toggles if OpenAnnotations section should be included or not"
+                    "description": "Toggles if OpenAnnotations section should be included or not",
+                    "display": True,
+					"formGroup": "settings"
                 },
                 {
                     "name": "minimumScore",
                     "label": " Minimum Score",
                     "type": "integer",
                     "required": False,
-                    "description": "The minimum number of fields that must match before iDigBio specimens are returned"
-                }]}
+                    "description": "The minimum number of fields that must match before iDigBio specimens are returned",
+                    "display": True,
+					"formGroup": "settings"
+                },
+				{
+					"name": "format",
+					"label": "Data format",
+					"type": "text",
+					"required": False,
+					"description": "Format of return data. Default is JSON. Other possible values are CSV, TAB.",
+					"display": True,
+					"formGroup": "settings",
+					"validOptions": ["JSON", "CSV", "TAB"]
+				}]}
