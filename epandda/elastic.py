@@ -9,7 +9,7 @@ class elasticBasedResource(baseResource):
 	def __init__(self):
 		super(elasticBasedResource, self).__init__()
 
-	def _queryMedia(self, coreid):
+	def _queryMedia(self, coreid, mediaIDs):
 		mediaURLs = []
 		mediaQuery = {"query": {"term": {"coreid.keyword": coreid}}}
 		mediaRes = self.es.search(index="idigbio_media2", body=mediaQuery)
@@ -63,13 +63,13 @@ class elasticBasedResource(baseResource):
 				# Without a field component we treat this as a query against all fields
 				field = None
 				term = search
-				processed['idbQuery']['query']['bool']['must'].append({"query_string": {"query": term}})
-				processed['pbdbQuery']['query']['bool']['must'].append({"query_string": {"query": term}})
+				processed['idbQuery']['query']['bool']['must'].append({"query_string": {"query": '"' + term + '"'}})
+				processed['pbdbQuery']['query']['bool']['must'].append({"query_string": {"query": '"' + term + '"'}})
 				idbAdded = True
 				pbdbAdded = True
 			# Translate terms for iDigBio
 			if field in idigbioReplacements:
-				processed['idbQuery']['query']['bool']['must'].append({"match": {idigbioReplacements[field]: term}})
+				processed['idbQuery']['query']['bool']['must'].append({"term": {idigbioReplacements[field]: term}})
 				idbAdded = True
 			# Translate terms for PBDB
 			if field in pbdbReplacements:
@@ -88,14 +88,14 @@ class elasticBasedResource(baseResource):
 						errmsg = "The country provided in the terms query could not be found. Please check your query and provide a valid country name"
 						return self.respondWithError(errmsg)
 
-				processed['pbdbQuery']['query']['bool']['must'].append({"match": {pbdbReplacements[field]: term}})
+				processed['pbdbQuery']['query']['bool']['must'].append({"term": {pbdbReplacements[field]: term}})
 				pbdbAdded = True
 
 			# Add Translated Terms to ES Query
 			if idbAdded is False:
-				processed['idbQuery']['query']['bool']['must'].append({"match": {field: term}})
+				processed['idbQuery']['query']['bool']['must'].append({"term": {field: term}})
 			if pbdbAdded is False:
-				processed['pbdbQuery']['query']['bool']['must'].append({"match": {field: term}})
+				processed['pbdbQuery']['query']['bool']['must'].append({"term": {field: term}})
 
 		# Default query if no params were given
 		if len(processed['idbQuery']['query']['bool']['must']) == 0:
@@ -142,6 +142,7 @@ class elasticBasedResource(baseResource):
 	def getLocalityMatch(self, matchLevel):
 		localityMatch = {'idigbio': 'dwc:county', 'pbdb': 'county'}
 		if matchLevel:
+			matchLevel = matchLevel.lower()
 			localityMatch['pbdb'] = matchLevel
 			localityMatch['idigbio'] = 'dwc:' + matchLevel
 			if matchLevel == 'state':
@@ -153,6 +154,7 @@ class elasticBasedResource(baseResource):
 	def getTaxonMatch(self, matchLevel, idigbioReplacements, pbdbReplacements):
 		taxonMatch = {'idigbio': 'dwc:genus', 'pbdb': 'genus'}
 		if matchLevel:
+			matchLevel = matchLevel.lower()
 			if matchLevel in idigbioReplacements:
 				taxonMatch['idigbio'] = idigbioReplacements[matchLevel]
 			else:
@@ -168,6 +170,7 @@ class elasticBasedResource(baseResource):
 		chronoMatch = {'idigbio': {'early': 'dwc:earliestPeriodOrLowestSystem', 'late': 'dwc:latestPeriodOrHighestSystem'}}
 		chronoMatchLevel = None
 		if matchLevel:
+			matchLevel = matchLevel.lower()
 			chronoMatchLevel = matchLevel
 			if matchLevel == 'age':
 				chronoMatch = {'idigbio': {'early': 'dwc:earliestAgeOrLowestStage', 'late': 'dwc:latestAgeOrHighestStage'}}
@@ -179,7 +182,7 @@ class elasticBasedResource(baseResource):
 			chronoMatchLevel = 'period'
 		return chronoMatch, chronoMatchLevel
 
-	def parseMatches(self, params, idbRes, pbdbRes, taxonMatch, localityMatch, chronoMatch, chronoMatchLevel, returnMedia=False, mediaOnly=True, pbdbType='occs'):
+	def parseMatches(self, params, idbRes, pbdbRes, taxonMatch, localityMatch, chronoMatch, chronoMatchLevel, returnMedia=False, mediaOnly=False, pbdbType='occs'):
 
 		matches = {'results': {}}
 		if mediaOnly:
@@ -190,8 +193,12 @@ class elasticBasedResource(baseResource):
 
 			if res['hits']['hits'][0]['_type'] == 'idigbio':
 				matches['idigbio_search_after'] = json.dumps(res['hits']['hits'][-1]['sort'])
+				if mediaOnly:
+					mediaMatches['idigbio_search_after'] = json.dumps(res['hits']['hits'][-1]['sort'])
 			else:
 				matches['pbdb_search_after'] = json.dumps(res['hits']['hits'][-1]['sort'])
+				if mediaOnly:
+					mediaMatches['pbdb_search_after'] = json.dumps(res['hits']['hits'][-1]['sort'])
 
 			for hit in res['hits']['hits']:
 
@@ -388,17 +395,7 @@ class elasticBasedResource(baseResource):
 
 				if hashRes in matches['results']:
 					sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"], pbdbType)
-					if returnMedia and hit['_type'] == 'idigbio' and sourceRow['idigbio:hasImage'] == 'true':
-						mediaFiles = self._queryMedia(sourceRow['idigbio:uuid'])
-						if mediaFiles:
-							if mediaOnly:
-								mediaMatches['mediaURLs'].extend(mediaFiles)
-							else:
-								sourceRow['mediaURLs'] = mediaFiles
-					if not mediaOnly:
-						matches['results'][hashRes]['sources'].append(sourceRow)
 				else:
-
 					# Resolve Reference, hardset the pbdb_type to refs
 					sourceRow = self.resolveReference(hit["_source"], hit["_id"], hit["_type"], pbdbType)
 					matches['results'][hashRes] = {'fields': data['matchFields'], 'totalMatches': 0, 'matches': None, 'sources': [sourceRow], 'fullMatchQuery': None}
@@ -410,10 +407,11 @@ class elasticBasedResource(baseResource):
 							for link in linkResult['hits']['hits']:
 								row = self.resolveReference(link['_source'], link['_id'], link['_type'], pbdbType)
 								if returnMedia and link['_type'] == 'idigbio' and row['idigbio:hasImage'] == 'true':
-									mediaFiles = self._queryMedia(row['idigbio:uuid'])
+									mediaFiles = self._queryMedia(row['idigbio:uuid'], row['idigbio:mediarecords'])
 									if mediaFiles:
 										if mediaOnly:
-											mediaMatches['mediaURLs'].extend(mediaFiles)
+											mediaMatches['mediaURLs'].append({"record": "https://www.idigbio.org/portal/records/" + row['idigbio:uuid'], "media": mediaFiles})
+											#mediaMatches['mediaURLs'].extend(mediaFiles)
 										else:
 											sourceRow['mediaURLs'] = mediaFiles
 								if not mediaOnly:
@@ -450,6 +448,17 @@ class elasticBasedResource(baseResource):
 							}
 
 						matches['results'][hashRes]['fullSourceQuery'] = json.dumps(sourceQuery)
+				
+				if returnMedia and hit['_type'] == 'idigbio' and sourceRow['idigbio:hasImage'] == 'true':
+					mediaFiles = self._queryMedia(sourceRow['idigbio:uuid'], sourceRow['idigbio:mediarecords'])
+					if mediaFiles:
+						if mediaOnly:
+							mediaMatches['mediaURLs'].append({"record": "https://www.idigbio.org/portal/records/" + sourceRow['idigbio:uuid'], "media": mediaFiles})
+							#mediaMatches['mediaURLs'].extend(mediaFiles)
+						else:
+							sourceRow['mediaURLs'] = mediaFiles
+				if not mediaOnly:
+					matches['results'][hashRes]['sources'].append(sourceRow)
 
 				if mediaOnly:
 					continue
@@ -464,7 +473,7 @@ class elasticBasedResource(baseResource):
 				matches['results'][hashRes]['sourceType'] = sourceType
 				matches['results'][hashRes]['matchType'] = matchType
 
-		if mediaOnly:
+		if mediaOnly == True:
 			mediaMatches['queryInfo'] = {'matchCriteria': {'chronostratigraphyMatch': chronoMatch, 'taxonomyMatch': taxonMatch, 'localityMatch': localityMatch}, 'total': len(mediaMatches['mediaURLs'])}
 			return mediaMatches
 		matches['queryInfo'] = {'idigbioTotal': idbRes['hits']['total'], 'pbdbTotal': pbdbRes['hits']['total'], 'matchCriteria': {'chronostratigraphyMatch': chronoMatch, 'taxonomyMatch': taxonMatch, 'localityMatch': localityMatch}}
