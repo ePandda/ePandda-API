@@ -14,6 +14,7 @@ from sources import paleobio_refs
 import re
 import annotation
 import hashlib
+import traceback
 
 #
 # Base class for API resource
@@ -557,7 +558,7 @@ class baseResource(Resource):
         # process errors, omitting ones not related to a parameter or GENERAL (the generic error heading)
         errors_filtered = {}
         if type(errors) is int:
-            return {"errors": errors}
+            return {"errors": errors, "stack": traceback.format_exc().splitlines()}
         elif type(errors) is str:
             errors_filtered = "Unknown error: " + errors
         else:
@@ -572,6 +573,6 @@ class baseResource(Resource):
                 else:
                     errors_filtered[i] = "Unknown error: " + errors
         if self.returnResponse:
-            return Response(json.dumps({"errors": errors_filtered}, sort_keys=True, indent=4, separators=(',', ': ')).encode('utf8'), status=500, mimetype="text/json")
+            return Response(json.dumps({"errors": errors_filtered, "stack": traceback.format_exc().splitlines()}, sort_keys=True, indent=4, separators=(',', ': ')).encode('utf8'), status=500, mimetype="text/json")
         else:
-            return {"errors": errors_filtered}
+            return {"errors": errors_filtered, "stack": traceback.format_exc().splitlines()}
