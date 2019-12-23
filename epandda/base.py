@@ -2,6 +2,7 @@ from flask import request, Response
 from flask_restful import Resource, Api
 import json
 from pymongo import MongoClient
+from elasticsearch import Elasticsearch
 from bson import Binary, Code, json_util, BSON, ObjectId
 from bson.json_util import dumps
 import datetime
@@ -12,6 +13,8 @@ from sources import paleobio
 from sources import paleobio_refs
 import re
 import annotation
+import hashlib
+import traceback
 
 #
 # Base class for API resource
@@ -26,6 +29,7 @@ class baseResource(Resource):
         self.config = json.load(open('./config.json'))
 
         self.client = MongoClient("mongodb://" + self.config['mongodb_user'] + ":" + self.config['mongodb_password'] + "@" + self.config['mongodb_host'])
+        self.es = Elasticsearch([self.config['elastic_host']], timeout=30)
         #self.client = MongoClient("mongodb://127.0.0.1")
         self.idigbio = self.client.idigbio.occurrence
         self.pbdb = self.client.pbdb.pbdb_occurrences
@@ -58,6 +62,38 @@ class baseResource(Resource):
     #
     # Resolve underlying data source ids (from iDigBio, PBDB, Etc.) to URLs the end-user can use
     #
+
+    def resolveReference(self, record, record_id, record_type, pbdb_type='occs', show_type='full'):
+        idigbio_fields = self.getFieldsForSource("idigbio", True)
+        paleobio_fields = self.getFieldsForSource("paleobio", True)
+
+        if "refs" == pbdb_type:
+            paleobio_fields = self.getFieldsForSource("paleobio_refs", True)
+
+        if record_type == 'idigbio':
+            row = {"uuid": record_id, "url": "https://www.idigbio.org/portal/records/" + record_id}
+
+            if idigbio_fields is not None:
+                for f in idigbio_fields:
+                    if f in record:
+                		row[f] = record[f]
+        elif record_type == 'pbdb':
+
+            # PBDB Preferred this URL for publications ( especially in annotations case )
+            if "refs" == pbdb_type:
+              pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + record['occ_refs-reference_no']
+            else:
+              pbdb_url = 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + record_id + '&show=' + show_type
+
+            row = {"url": pbdb_url }
+
+            if idigbio_fields is not None:
+                if paleobio_fields is not None:
+                    for f in paleobio_fields:
+                        if f in record:
+                            row[f] = record[f]
+        return row
+
     def resolveReferences(self, data, pbdb_type='occs', show_type='full'):
 
         resolved_references = {"idigbio_resolved" : [], "pbdb_resolved": [] }
@@ -66,7 +102,7 @@ class baseResource(Resource):
         paleobio_fields = self.getFieldsForSource("paleobio", True)
 
         if "refs" == pbdb_type:
-          paleobio_fields = self.getFieldsForSource("paleobio_refs", True) 
+          paleobio_fields = self.getFieldsForSource("paleobio_refs", True)
 
         offset = self.offset()
         limit = self.limit()
@@ -103,7 +139,7 @@ class baseResource(Resource):
             idigbio_ids = idigbio_ids[offset:limit]
             pbdb_ids = pbdb_ids[offset:limit]
 
-        # Double limiting? 
+        # Double limiting?
         if not use_UUID:
             idigbio_ids = map(lambda id: ObjectId(id), idigbio_ids[0:limit])
             pbdb_ids = map(lambda id: ObjectId(id), pbdb_ids[0:limit])
@@ -129,7 +165,7 @@ class baseResource(Resource):
               for i in p:
                 pbdb_records[ int(i['pid']) ] = i
 
-            else: 
+            else:
               p = self.pbdb.find({"occurrence_no": {"$in" : pbdb_ids}})
               pbdb_records = {}
               for i in p:
@@ -148,16 +184,16 @@ class baseResource(Resource):
 
         resolved_references["idigbio_resolved"] = resolved
 
-        
+
         resolved = []
         for mitem in data:
 
           for pbdbid in pbdb_ids:
 
-            # PBDB resolves to different URL's based on if occurrence or publication 
-            pbdb_url = 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + str(pbdb_id) + '&show=' + show_type
+            # PBDB resolves to different URL's based on if occurrence or publication
+            pbdb_url = 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + str(pbdbid) + '&show=' + show_type
             if 'refs' == pbdb_type:
-              pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + str(pbdb_id)
+              pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + str(pbdbid)
 
             row = {"url": pbdb_url}
 
@@ -165,7 +201,7 @@ class baseResource(Resource):
                 for f in paleobio_fields:
                     if f in pbdb_records[pbdbid]:
                         row[f] = pbdb_records[pbdbid][f]
-            
+
             resolved.append(row)
 
         resolved_references["pbdb_resolved"] = resolved
@@ -249,7 +285,7 @@ class baseResource(Resource):
         self.validateParams()
 
         self.paramCount = c
-        
+
         return self.params
 
     #
@@ -321,6 +357,18 @@ class baseResource(Resource):
         if self.params is None or self.params.get('limit') is None:
             self.getParams()
         return 10 if self.params['limit'] is None else int(self.params['limit'])
+
+    #
+    # Get return format
+    #
+    def format(self):
+        if self.params is None or self.params.get('format') is None:
+            return 'JSON'
+        if self.params['format'] == 'CSV':
+            return 'CSV'
+        if self.params['format'] == 'TAB':
+            return 'TAB'
+        return 'JSON'
 
     #
     # Default description block for endpoints that don't describe themselves
@@ -507,22 +555,24 @@ class baseResource(Resource):
     #
     def respondWithError(self, errors):
         names = self.getParameterNames()
-
         # process errors, omitting ones not related to a parameter or GENERAL (the generic error heading)
         errors_filtered = {}
-
-        for i in errors:
-            if i == "GENERAL" or i in names:
-                if type(errors[i]) is list:
-                    errors_filtered[i] = errors[i]
-                elif type(errors[i]) is tuple:
-                    errors_filtered[i] = [v for key in errors[i] for v in key]
-                else:
-                    errors_filtered[i] = [errors[i]]
-            else:
-                errors_filtered[i] = "Unknown error: " + errors
-
-        if self.returnResponse:
-            return Response(json.dumps({"errors": errors_filtered}, sort_keys=True, indent=4, separators=(',', ': ')).encode('utf8'), status=500, mimetype="text/json")
+        if type(errors) is int:
+            return {"errors": errors, "stack": traceback.format_exc().splitlines()}
+        elif type(errors) is str:
+            errors_filtered = "Unknown error: " + errors
         else:
-            return {"errors": errors_filtered}
+            for i in errors:
+                if i == "GENERAL" or i in names:
+                    if type(errors[i]) is list:
+                        errors_filtered[i] = errors[i]
+                    elif type(errors[i]) is tuple:
+                        errors_filtered[i] = [v for key in errors[i] for v in key]
+                    else:
+                        errors_filtered[i] = [errors[i]]
+                else:
+                    errors_filtered[i] = "Unknown error: " + errors
+        if self.returnResponse:
+            return Response(json.dumps({"errors": errors_filtered, "stack": traceback.format_exc().splitlines()}, sort_keys=True, indent=4, separators=(',', ': ')).encode('utf8'), status=500, mimetype="text/json")
+        else:
+            return {"errors": errors_filtered, "stack": traceback.format_exc().splitlines()}

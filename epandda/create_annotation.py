@@ -7,7 +7,7 @@ from mongo import mongoBasedResource
 #
 # oAuth: ORCID Public API
 #
-# Get user's ORCID ID ( and maybe valid auth_token? ) from implemented form 
+# Get user's ORCID ID ( and maybe valid auth_token? ) from implemented form
 # Verify user has valid ORCID
 # Verify and process annotation data object
 # Insert into DB if successful and return msg and error status back to implementee form
@@ -15,11 +15,14 @@ from mongo import mongoBasedResource
 
 # Create Annotation Class
 
-class create(mongoBasedResource):
+class create_annotation(mongoBasedResource):
 
-  
+
   # User Created Annotation submission
   def process(self):
+
+      if self.paramCount < 1:
+          return self.respondWithDescription()
 
       # Monogodb index for Annotations
       annotations = self.client.endpoints.annotations
@@ -33,11 +36,11 @@ class create(mongoBasedResource):
 
       # Load API config
       self.config = json.load(open('./config.json'))
-  
+
       # ORCID oAuth Config
       redirect_url  = self.config['orcid_redirect']
       client_id     = self.config['orcid_client_id']
-      client_secret = self.config['orcid_client_secret']     
+      client_secret = self.config['orcid_client_secret']
 
       # data params
       encoded_body = {
@@ -45,7 +48,7 @@ class create(mongoBasedResource):
         'client_secret': client_secret,
         'grant_type': 'client_credentials',
         'scope': '/read-public'
-      } 
+      }
 
       orcid_url = "https://orcid.org/oauth/token"
 
@@ -63,7 +66,7 @@ class create(mongoBasedResource):
       print str(access_token)
 
       if access_token:
-      
+
           # Our client login worked, now let's get the ORCID-bio for our user
 
           orcidbio_url = 'https://orcid.org/0000-0003-4910-9085'
@@ -87,7 +90,7 @@ class create(mongoBasedResource):
 
           authConditionMet = False
           if authConditionMet:
-              
+
               # Check params
               print params
 
@@ -108,6 +111,7 @@ class create(mongoBasedResource):
           'maintainer': 'Jon Lauters',
           'maintainer_email': 'jon@epandda.org',
           'description': 'Human created Annotations endpoint (ORCID verified )',
+          'private': False,
           'params': [
               {
                   "name": "orcid",
@@ -158,7 +162,7 @@ class create(mongoBasedResource):
                   "required": False,
                   "description": "The DOI of the annotation Body"
               },
-              { 
+              {
                   "name": "missing_data",
                   "label": "Missing Data",
                   "type": "text",
@@ -172,6 +176,6 @@ class create(mongoBasedResource):
                   "required": False,
                   "description": "List of key value pairs with description of why data correction fixes issue"
               }
-              
-          ] 
-      } 
+
+          ]
+      }

@@ -19,9 +19,9 @@ class publications(mongoBasedResource):
     def process(self):
 
         # Mongodb index for Publication
-        pubIndex = self.client.test.pubIndexV2
+        pubIndex = self.client.endpoints.pubIndexV2
 
-  
+
         # returns dictionary of params as defined in endpoint description
         # will throw exception if required param is not present
         params = self.getParams()
@@ -42,14 +42,14 @@ class publications(mongoBasedResource):
           limit = 100
 
         pubQuery = []
-	minScore = 0
+        minScore = 0
         if self.paramCount > 0:
 
           criteria = {
             'endpoint': 'publications',
             'parameters': {},
             'matchPoints': [],
-            'matchTerms': { 
+            'matchTerms': {
               'stateProvinceNames': [],
               'countryNames': [],
               'countyNames': [],
@@ -67,7 +67,7 @@ class publications(mongoBasedResource):
 
               if 'scientific_name' == p:
                 higher_taxa = str(params[p]).lower()
-                pubQuery.append({ "$or": [{"higher_taxa": higher_taxa }, { "index_term": { "$regex": re.compile(higher_taxa, re.IGNORECASE) }} ] })  
+                pubQuery.append({ "$or": [{"higher_taxa": higher_taxa }, { "index_term": { "$regex": re.compile(higher_taxa, re.IGNORECASE) }} ] })
 
               if 'stateProvinceName' == p:
                 state = str(params[p]).lower()
@@ -83,14 +83,14 @@ class publications(mongoBasedResource):
                 county = str(params[p]).lower()
                 pubQuery.append({"counties": re.compile(county, re.IGNORECASE)})
                 criteria['matchTerms']['countyNames'].append( county )
-              
+
               # ... This doesn't exist as a thing yet :/
               if 'locality' == p:
                 locality = str(params[p]).lower()
 
                 # Search localities index if locality name given ..
                 # Get state and county for this
-                # Filter iDigBio results by locality ... 
+                # Filter iDigBio results by locality ...
 
 
                 pubQuery.append({"locality": locality})
@@ -111,6 +111,9 @@ class publications(mongoBasedResource):
               if 'minimumScore' == p:
                 minScore = params[p]
 
+              if 'minimumScore' == p:
+                minScore = params[p]
+
               criteria['parameters'][p] = str(params[p]).lower()
 
           d = []
@@ -126,8 +129,8 @@ class publications(mongoBasedResource):
               if 'vetted' in i:
 
                 for idb in i['vetted']:
-                  if idb['score'] > minScore: 
-                    matches['faceted_matches'].append({ 'pbdb_id': i['pid'], 'idigbio_uuid': idb['uuid'], 'matchedOn': idb['matched_on'], 'score': idb['score']}) 
+                  if idb['score'] >= minScore:
+                    matches['faceted_matches'].append({ 'pbdb_id': i['pid'], 'idigbio_uuid': idb['uuid'], 'matchedOn': idb['matched_on'], 'score': idb['score']})
                     matches['idigbio'].append( idb['uuid'] )
 
               matches['pbdb'].append( i['pid'] )
@@ -137,15 +140,15 @@ class publications(mongoBasedResource):
 
               if 'stateProvinceName' in i and i['stateProvinceName'] not in criteria['matchTerms']['stateProvinceNames']:
                 criteria['matchTerms']['stateProvinceNames'].append(i['stateProvinceName'])
-    
+
               if 'county' in i and i['county'] not in criteria['matchTerms']['countyNames']:
                 criteria['matchTerms']['countyNames'].append(i['county'])
-          
+
               if 'locality' in i:
                 if i['locality'] not in criteria['matchTerms']['localityNames']:
-                  criteria['matchTerms']['localityNames'].append(i['locality'])    
+                  criteria['matchTerms']['localityNames'].append(i['locality'])
 
-          
+
               if 'originalStateProvinceName' in i:
                 for origState in i['originalStateProvinceName']:
                   if origState not in criteria['matchTerms']['originalStates']:
@@ -181,14 +184,14 @@ class publications(mongoBasedResource):
           d = self.resolveReferences(d,'refs', 'both' )
 
           counts = {
-            'totalCount': idbCount + pbdbCount, 
+            'totalCount': idbCount + pbdbCount,
             'idbCount': idbCount,
             'pbdbCount': pbdbCount
           }
 
           print "Responding data package ..."
           return self.respond({
-              'counts': counts, 
+              'counts': counts,
               'results': d,
               'criteria': criteria,
               'includeAnnotations': params['includeAnnotations'],
@@ -197,7 +200,7 @@ class publications(mongoBasedResource):
         else:
 
           return self.respondWithDescription()
-            
+
 
     def description(self):
         return {
@@ -211,69 +214,98 @@ class publications(mongoBasedResource):
                     "label": "Scientific Name",
                     "type": "text",
                     "required": False,
-                    "description": "Taxon to search occurrence records for"
+                    "description": "Taxon to search occurrence records for",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "journal",
                     "label": "Journal",
                     "type": "text",
                     "required": False,
-                    "description": "Then name of academic Journal a publication would be found"
+                    "description": "Then name of academic Journal a publication would be found",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "article",
                     "label": "Article",
                     "type": "text",
                     "required": False,
-                    "description": "The name of the journal article the given scientific_name appears in"
+                    "description": "The name of the journal article the given scientific_name appears in",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "author",
                     "label": "Author",
                     "type": "text",
                     "required": False,
-                    "description": "The name of the author who's article describes the given scientific_name"
+                    "description": "The name of the author who's article describes the given scientific_name",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "stateProvinceName",
                     "label": "State/Province",
                     "type": "text",
                     "required": False,
-                    "description": "The state/province to search for scientific_name and publication references"
+                    "description": "The state/province to search for scientific_name and publication references",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "countryName",
                     "label": "Country",
                     "type": "text",
                     "required": False,
-                    "description": "The Country Name to search for publication references and specimens in"
+                    "description": "The Country Name to search for publication references and specimens in",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "county",
                     "label": "County",
                     "type": "text",
                     "required": False,
-                    "description": "The county to search for scientific_name and publication references"
+                    "description": "The county to search for scientific_name and publication references",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "locality",
                     "label": "Locality",
                     "type": "text",
                     "required": False,
-                    "description": "The locality name to search for scientific_name occurences and publication references"
+                    "description": "The locality name to search for scientific_name occurences and publication references",
+                    "display": True,
+					"formGroup": "search"
                 },
                 {
                     "name": "includeAnnotations",
                     "label": "Include Annotations",
                     "type": "boolean",
                     "required": False,
-                    "description": "Toggles if OpenAnnotations section should be included or not"
+                    "description": "Toggles if OpenAnnotations section should be included or not",
+                    "display": True,
+					"formGroup": "settings"
                 },
                 {
                     "name": "minimumScore",
-                    "label": "Minimum Score",
+                    "label": " Minimum Score",
                     "type": "integer",
                     "required": False,
-                    "description": "The minimum score (number of fields) that potential iDigBio specimen matches must meet before being returned"
-                }
-                ]}
+                    "description": "The minimum number of fields that must match before iDigBio specimens are returned",
+                    "display": True,
+					"formGroup": "settings"
+                },
+				{
+					"name": "format",
+					"label": "Data format",
+					"type": "text",
+					"required": False,
+					"description": "Format of return data. Default is JSON. Other possible values are CSV, TAB.",
+					"display": True,
+					"formGroup": "settings",
+					"validOptions": ["JSON", "CSV", "TAB"]
+				}]}

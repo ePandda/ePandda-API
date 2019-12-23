@@ -244,8 +244,8 @@ class occurrences(mongoBasedResource):
 	def description(self):
 		return {
 			'name': 'Occurrence index',
-			'maintainer': 'Michael Benowitz',
-			'maintainer_email': 'michael@epandda.org',
+			'maintainer': 'Seth Kaufman',
+			'maintainer_email': 'seth@epandda.org',
 			'description': 'Returns specimens collected from a given locality',
 			'params': [
 				{
