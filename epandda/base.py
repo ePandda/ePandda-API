@@ -123,7 +123,6 @@ class baseResource(Resource):
 
             if "refs" == pbdb_type:
 
-              print "making refs query"
               pbdb_ids_str = [ str(pbdb_id) for pbdb_id in pbdb_ids ]
               p = self.refs.find({"pid": {"$in": pbdb_ids_str}}, {"_id": False})
               pbdb_records = {}
@@ -149,14 +148,18 @@ class baseResource(Resource):
 
         resolved_references["idigbio_resolved"] = resolved
 
-        if 'refs' == pbdb_type:
-          show_type = 'both'
-
+        
         resolved = []
         for mitem in data:
 
           for pbdbid in pbdb_ids:
-            row = {"url": 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + str(pbdbid) + '&show=' + show_type }
+
+            # PBDB resolves to different URL's based on if occurrence or publication 
+            pbdb_url = 'https://paleobiodb.org/data1.2/' + pbdb_type + '/single.json?id=' + str(pbdb_id) + '&show=' + show_type
+            if 'refs' == pbdb_type:
+              pbdb_url = 'https://paleobiodb.org/classic/displayRefResults?reference_no=' + str(pbdb_id)
+
+            row = {"url": pbdb_url}
 
             if paleobio_fields is not None:
                 for f in paleobio_fields:
@@ -178,7 +181,7 @@ class baseResource(Resource):
         if "offset" not in data:
             data["offset"] = 0
         if "limit" not in data:
-            data["limit"] = 10
+            data["limit"] = 100
 
         for p in desc:
             if p["name"] not in data:
@@ -478,6 +481,7 @@ class baseResource(Resource):
     #
     def loadEndpoint(self, endpoint):
         try:
+
             module = importlib.import_module("." + endpoint, "epandda")
             for x in dir(module):
                 obj = getattr(module, x)

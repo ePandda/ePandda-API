@@ -21,6 +21,8 @@ from epandda import taxonomy
 from epandda import bugReport
 from epandda import lithostratigraphy
 from epandda import annotations
+from epandda import createAnnotation
+from epandda import oauth
 
 from flask_cors import CORS, cross_origin
 import sys
@@ -53,6 +55,9 @@ api.add_resource(taxonomy.taxonomy, '/taxonomy')
 api.add_resource(bugReport.bugReport, '/bugReport')
 api.add_resource(lithostratigraphy.lithostratigraphy, '/lithostratigraphy')
 api.add_resource(annotations.annotations, '/annotations')
+api.add_resource(annotations.single, '/annotations/single/<string:annotation_id>')
+api.add_resource(createAnnotation.create, '/annotations/create')
+api.add_resource(oauth.oauth, '/oauth')
 
 if __name__ == '__main__':
   app.run()

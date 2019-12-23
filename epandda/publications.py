@@ -2,15 +2,15 @@ import re
 from mongo import mongoBasedResource
 from flask_restful import reqparse
 
-parser = reqparse.RequestParser()
+#parser = reqparse.RequestParser()
 
-parser.add_argument('scientific_name', type=str, help='Taxonomic name to search bibliographic records for')
-parser.add_argument('journal', type=str, help='Journal name where taxon was described')
-parser.add_argument('article', type=str, help='Article name where taxon was described')
-parser.add_argument('author', type=str, help='One of the authors of article describing taxon')
-parser.add_argument('stateProvinceName', type=str, help='State or province name to filter described taxon results')
-parser.add_argument('county', type=str, help='County name to filter described taxon results')
-parser.add_argument('locality', type=str, help='Locality name to filter described taxon results')
+#parser.add_argument('scientific_name', type=str, help='Taxonomic name to search bibliographic records for')
+#parser.add_argument('journal', type=str, help='Journal name where taxon was described')
+#parser.add_argument('article', type=str, help='Article name where taxon was described')
+#parser.add_argument('author', type=str, help='One of the authors of article describing taxon')
+#parser.add_argument('stateProvinceName', type=str, help='State or province name to filter described taxon results')
+#parser.add_argument('county', type=str, help='County name to filter described taxon results')
+#parser.add_argument('locality', type=str, help='Locality name to filter described taxon results')
 
 #
 #
@@ -19,7 +19,7 @@ class publications(mongoBasedResource):
     def process(self):
 
         # Mongodb index for Publication
-        pubIndex = self.client.endpoints.pubIndexV2
+        pubIndex = self.client.test.pubIndexV2
 
   
         # returns dictionary of params as defined in endpoint description
@@ -61,7 +61,7 @@ class publications(mongoBasedResource):
             }
           }
 
-          for p in ['stateProvinceName', 'author', 'scientific_name', 'journal', 'locality', 'county', 'article']:  
+          for p in ['stateProvinceName', 'author', 'scientific_name', 'journal', 'locality', 'county', 'article', 'countryName']:  
 
             if params[p]:
 
@@ -73,6 +73,11 @@ class publications(mongoBasedResource):
                 state = str(params[p]).lower()
                 pubQuery.append({"states": re.compile(state, re.IGNORECASE)})
                 criteria['matchTerms']['stateProvinceNames'].append( state )
+
+              if 'countryName' == p:
+                 country = str(params[p]).lower()
+                 pubQuery.append({"countries": re.compile(country, re.IGNORECASE)})
+                 criteria['matchTerms']['countryNames'].append( country )
 
               if 'county' == p:
                 county = str(params[p]).lower()
@@ -235,6 +240,13 @@ class publications(mongoBasedResource):
                     "type": "text",
                     "required": False,
                     "description": "The state/province to search for scientific_name and publication references"
+                },
+                {
+                    "name": "countryName",
+                    "label": "Country",
+                    "type": "text",
+                    "required": False,
+                    "description": "The Country Name to search for publication references and specimens in"
                 },
                 {
                     "name": "county",
