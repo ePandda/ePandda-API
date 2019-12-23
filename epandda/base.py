@@ -15,6 +15,11 @@ import re
 import annotation
 import hashlib
 import traceback
+import uuid 
+import csv
+import os
+from zipfile import ZipFile
+
 
 #
 # Base class for API resource
@@ -364,10 +369,8 @@ class baseResource(Resource):
     def format(self):
         if self.params is None or self.params.get('format') is None:
             return 'JSON'
-        if self.params['format'] == 'CSV':
-            return 'CSV'
-        if self.params['format'] == 'TAB':
-            return 'TAB'
+        if self.params['format'].upper() == 'ZIP':
+            return 'ZIP'
         return 'JSON'
 
     #
@@ -412,7 +415,7 @@ class baseResource(Resource):
     #
     def get(self):
         try:
-            return self.process()
+            return self.postProcess(self.process())
         except Exception as e:
             return self.respondWithError(e.args[0])
 
@@ -423,7 +426,7 @@ class baseResource(Resource):
     def post(self):
         #return self.process()
         try:
-            return self.process()
+            return self.postProcess(self.process())
         except Exception as e:
             return self.respondWithError(e.args[0])
 
@@ -438,6 +441,70 @@ class baseResource(Resource):
             names.append(f['name'])
 
         return names
+    
+    #
+    #
+    #
+    def postProcess(self, resp):
+		format = self.format()
+
+		if format == 'JSON':
+			return resp
+	
+		download_dir = self.config['download_dir']
+
+		req_id = str(uuid.uuid1())
+		os.mkdir(download_dir + req_id);
+    	
+		idigbio_lines = []
+		pbdb_lines = []
+		zzz = []
+		for i in resp['results']:
+			if 'matches' in resp['results'][i] and resp['results'][i]['matches'] is not None:   
+				for s in resp['results'][i]['matches']:
+					if resp['results'][i]['matchType'] == 'pbdb':
+						pbdb_lines.append(s)
+					else:
+						idigbio_lines.append(s)
+			if 'sources' in resp['results'][i] and resp['results'][i]['sources'] is not None:    			
+				for s in resp['results'][i]['sources']:
+					if resp['results'][i]['sourceType'] == 'pbdb':
+						pbdb_lines.append(s)
+					else:
+						idigbio_lines.append(s)		
+		
+		paths = []
+		with open(download_dir + req_id + "/data.json", "w") as json_file:
+			paths.append("data.json")
+			json_file.write(json.dumps(resp, sort_keys=True, indent=4, separators=(',', ': ')).encode('utf8'))
+		with open(download_dir + req_id + "/idigbio.csv", "w") as csv_file:
+			if len(idigbio_lines) > 0:
+				paths.append("idigbio.csv")
+				csvwriter = csv.writer(csv_file)
+				count = 0
+				for l in idigbio_lines:
+					if count == 0:
+						csvwriter.writerow(l.keys())
+					csvwriter.writerow([unicode(s).encode("utf-8") for s in l.values()])
+
+					count = count + 1
+		with open(download_dir + req_id + "/pbdb.csv", "w") as csv_file:
+			if len(pbdb_lines) > 0:
+				paths.append("pbdb.csv")
+				csvwriter = csv.writer(csv_file)
+				count = 0
+				for l in pbdb_lines:
+					if count == 0:
+						csvwriter.writerow(l.keys())
+					csvwriter.writerow([unicode(s).encode("utf-8") for s in l.values()])
+
+					count = count + 1
+		with ZipFile(download_dir + req_id + ".zip",'w') as zip: 
+			for p in paths:
+				zip.write(download_dir + req_id + "/" + p, p)
+				
+		resp['downloadData'] = self.config['download_url'] + req_id + ".zip";
+		return resp
 
     #
     # Return an API response. The format of the response can vary based upon

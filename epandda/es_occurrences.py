@@ -195,10 +195,11 @@ class es_occurrences(elasticBasedResource):
 					"label": "Data format",
 					"type": "text",
 					"required": False,
-					"description": "Format of return data. Default is JSON. Other possible values are CSV, TAB.",
+					"description": "Format of return data. Default is JSON. Other possible value is ZIP (JSON data + CSV in a ZIP'ed package).",
 					"display": True,
 					"formGroup": "settings",
-					"validOptions": ["JSON", "CSV", "TAB"]
+					"validOptions": ["JSON", "ZIP"],
+					"mustBeSet": True
 				}
 			]
 		}
