@@ -458,20 +458,21 @@ class baseResource(Resource):
     	
 		idigbio_lines = []
 		pbdb_lines = []
-		zzz = []
-		for i in resp['results']:
-			if 'matches' in resp['results'][i] and resp['results'][i]['matches'] is not None:   
-				for s in resp['results'][i]['matches']:
-					if resp['results'][i]['matchType'] == 'pbdb':
-						pbdb_lines.append(s)
-					else:
-						idigbio_lines.append(s)
-			if 'sources' in resp['results'][i] and resp['results'][i]['sources'] is not None:    			
-				for s in resp['results'][i]['sources']:
-					if resp['results'][i]['sourceType'] == 'pbdb':
-						pbdb_lines.append(s)
-					else:
-						idigbio_lines.append(s)		
+		
+		if 'results' in resp:
+			for i in resp['results']:
+				if 'matches' in resp['results'][i] and resp['results'][i]['matches'] is not None:   
+					for s in resp['results'][i]['matches']:
+						if resp['results'][i]['matchType'] == 'pbdb':
+							pbdb_lines.append(s)
+						else:
+							idigbio_lines.append(s)
+				if 'sources' in resp['results'][i] and resp['results'][i]['sources'] is not None:    			
+					for s in resp['results'][i]['sources']:
+						if resp['results'][i]['sourceType'] == 'pbdb':
+							pbdb_lines.append(s)
+						else:
+							idigbio_lines.append(s)		
 		
 		paths = []
 		with open(download_dir + req_id + "/data.json", "w") as json_file:

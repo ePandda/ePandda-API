@@ -190,6 +190,8 @@ class elasticBasedResource(baseResource):
 		for res in [pbdbRes, idbRes]:
 			if res['hits']['total'] == 0:
 				continue
+				
+			mikrotax_matches = []
 
 			if res['hits']['hits'][0]['_type'] == 'idigbio':
 				matches['idigbio_search_after'] = json.dumps(res['hits']['hits'][-1]['sort'])
@@ -245,14 +247,20 @@ class elasticBasedResource(baseResource):
 						idbMatchList.append({"match": {taxonMatch['idigbio']: hit['_source'][taxonMatch['idigbio']]}})
 						data['matchFields'][taxonMatch['idigbio']] = hit['_source'][taxonMatch['idigbio']]
 						recHash.update(data['matchFields'][taxonMatch['idigbio']])
+
+						# Add Mikrotax matches						
+						mikrotax_res = self.es.search(index="mikrotax", body={"query": {"match": {"Taxon": hit['_source'][taxonMatch['idigbio']]}}})
+						for mikrotax_hit in mikrotax_res['hits']['hits']:
+							mikrotax_matches.append({'taxon': mikrotax_hit['_source']['Taxon'], 'url': mikrotax_hit['_source']['url'], 'image': "http://mikrotax.org" + mikrotax_hit['_source']['image_path']})
 					else:
 						noMatch = True
-
+						
+									
 					# iDigBio Chronostrat Matches
 					chrono_early = chrono_late = None
 					ma_start_score = ma_end_score = 0
-					ma_start = 1000
-					ma_end = 0
+					ma_start = None
+					ma_end = None
 
 					if hit['_source'][chronoMatch['idigbio']['early']] and hit['_source'][chronoMatch['idigbio']['late']]:
 
@@ -296,13 +304,14 @@ class elasticBasedResource(baseResource):
 								if hit['_score'] > ma_end_score:
 									ma_end = ma_start_hit['_source']['end_ma']
 									ma_end_score = ma_start_hit['_score']
+						
+						if ma_start is not None and ma_end is not None:
+							data['matchFields']['chronostratigraphy'] = {"max_ma": ma_start, "min_ma": ma_end}
 
-						data['matchFields']['chronostratigraphy'] = {"max_ma": ma_start, "min_ma": ma_end}
+							pbdbMatchList.append({"range": {"min_ma": {"lte": ma_start}}})
+							pbdbMatchList.append({"range": {"max_ma": {"gte": ma_end}}})
 
-						pbdbMatchList.append({"range": {"min_ma": {"lte": ma_start}}})
-						pbdbMatchList.append({"range": {"max_ma": {"gte": ma_end}}})
-
-					recHash.update( str(ma_start) + str(ma_end) )
+							recHash.update( str(ma_start) + str(ma_end) )
 					linkQuery = {
 						"size": 10,
 						"query":{
@@ -340,38 +349,44 @@ class elasticBasedResource(baseResource):
 						pbdbMatchList.append({"match": {taxonMatch['pbdb']: hit['_source'][taxonMatch['pbdb']]}})
 						data['matchFields'][taxonMatch['pbdb']] = hit['_source'][taxonMatch['pbdb']]
 						recHash.update(data['matchFields'][taxonMatch['pbdb']])
+						
+						# Add Mikrotax matches						
+						mikrotax_res = self.es.search(index="mikrotax", body={"query": {"match": {"Taxon": hit['_source'][taxonMatch['pbdb']]}}})
+						for mikrotax_hit in mikrotax_res['hits']['hits']:
+							mikrotax_matches.append({'taxon': mikrotax_hit['_source']['Taxon'], 'url': mikrotax_hit['_source']['url'], 'image': "http://mikrotax.org" + mikrotax_hit['_source']['image_path']})
 					else:
 						noMatch = True
 
 
-					# PBDB Chrono matching ( uses chronolookup index in ES )
-					matchChrono = []
-					chronoQuery = {
-						"query": {
-							"bool": {
-								"must": [
-									{ "range": { "start_ma": { "gte": hit['_source']['max_ma'] } } },
-									{ "range": { "end_ma": { "lte": hit['_source']['min_ma'] } } },
-									{ "match": { "level": chronoMatchLevel } }
-								]
+					if hit['_source']['min_ma'] is not None:
+						# PBDB Chrono matching ( uses chronolookup index in ES )
+						matchChrono = []
+						chronoQuery = {
+							"query": {
+								"bool": {
+									"must": [
+										{ "range": { "start_ma": { "gte": hit['_source']['max_ma'] } } },
+										{ "range": { "end_ma": { "lte": hit['_source']['min_ma'] } } },
+										{ "match": { "level": chronoMatchLevel } }
+									]
+								}
 							}
 						}
-					}
 
-					chronoRes = self.es.search(index="chronolookup", body=chronoQuery)
+						chronoRes = self.es.search(index="chronolookup", body=chronoQuery)
 
-					for chrono in chronoRes['hits']['hits']:
-						matchChrono.append(chrono['_source']['name'])
+						for chrono in chronoRes['hits']['hits']:
+							matchChrono.append(chrono['_source']['name'])
 
-					data['matchFields']['chronostratigraphy'] = matchChrono
+						data['matchFields']['chronostratigraphy'] = matchChrono
 
-					if not matchChrono:
-						noMatch = True
+						if not matchChrono:
+							noMatch = True
 
-					pbdbMatchList.append({"range": {"min_ma": {"lte": hit['_source']['max_ma']}}})
-					pbdbMatchList.append({"range": {"max_ma": {"gte": hit['_source']['min_ma']}}})
+						pbdbMatchList.append({"range": {"min_ma": {"lte": hit['_source']['max_ma']}}})
+						pbdbMatchList.append({"range": {"max_ma": {"gte": hit['_source']['min_ma']}}})
 
-					recHash.update( str(matchChrono) )
+						recHash.update( str(matchChrono) )
 
 					linkID = hit['_source']['occurrence_no']
 					linkField = 'occurrence_no'
@@ -458,7 +473,18 @@ class elasticBasedResource(baseResource):
 						else:
 							sourceRow['mediaURLs'] = mediaFiles
 				if not mediaOnly:
-					matches['results'][hashRes]['sources'].append(sourceRow)
+					thisUuid = None
+					
+					# Dedupe sources
+					if hit["_type"] == 'idigbio':
+						uuids = [z['idigbio:uuid'] for z in matches['results'][hashRes]['sources']]
+						thisUuid = sourceRow.get('idigbio:uuid', None)
+					else:
+						thisUuid = sourceRow.get('occurrence_no', None)
+						uuids = [z['occurrence_no'] for z in matches['results'][hashRes]['sources']]
+						
+					if thisUuid is None or thisUuid not in uuids:
+						matches['results'][hashRes]['sources'].append(sourceRow)
 
 				if mediaOnly:
 					continue
@@ -472,6 +498,10 @@ class elasticBasedResource(baseResource):
 
 				matches['results'][hashRes]['sourceType'] = sourceType
 				matches['results'][hashRes]['matchType'] = matchType
+				
+				# Try to find Mikrotax matches
+				if len(mikrotax_matches) > 0:
+					matches['results'][hashRes]['mikrotax'] = mikrotax_matches
 
 		if mediaOnly == True:
 			mediaMatches['queryInfo'] = {'matchCriteria': {'chronostratigraphyMatch': chronoMatch, 'taxonomyMatch': taxonMatch, 'localityMatch': localityMatch}, 'total': len(mediaMatches['mediaURLs'])}
