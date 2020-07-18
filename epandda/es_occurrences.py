@@ -16,7 +16,7 @@ class es_occurrences(elasticBasedResource):
 		format = self.format()
 
 		# iDigBio uses strange field names
-		idigbioReplacements = {'scientificname': 'dwc:scientificName', 'species': 'dwc:specificepithet', 'genus': 'dwc:genus', 'family': 'dwc:family', 'order': 'dwc:order', 'class': 'dwc:class', 'phylum': 'dwc:phylum', 'kingdom': 'dwc:kingdom',
+		idigbioReplacements = {'media': 'idigbio:hasMedia', 'scientificname': 'dwc:scientificName', 'scientificName': 'dwc:scientificName', 'species': 'dwc:specificepithet', 'genus': 'dwc:genus', 'family': 'dwc:family', 'order': 'dwc:order', 'class': 'dwc:class', 'phylum': 'dwc:phylum', 'kingdom': 'dwc:kingdom',
 		'locality': 'dwc:locality', 'county': 'dwc:county', 'state': 'dwc:stateProvince', 'country': 'dwc:country', 'geopoint': 'idigbio:geoPoint', 'basisofrecord': 'dwc:basisOfRecord', 'latestepochorhighestseries': 'dwc:latestEpochOrHighestSeries', 'earliestepochorlowestseries': 'dwc:earliestEpochOrLowestSeries'}
 
 		# There are a few PBDB edge cases too

@@ -63,13 +63,13 @@ class elasticBasedResource(baseResource):
 				# Without a field component we treat this as a query against all fields
 				field = None
 				term = search
-				processed['idbQuery']['query']['bool']['must'].append({"query_string": {"query": '"' + term + '"'}})
-				processed['pbdbQuery']['query']['bool']['must'].append({"query_string": {"query": '"' + term + '"'}})
+				processed['idbQuery']['query']['bool']['must'].append({"query_string": {"query": term }})
+				processed['pbdbQuery']['query']['bool']['must'].append({"query_string": {"query":  term }})
 				idbAdded = True
 				pbdbAdded = True
 			# Translate terms for iDigBio
 			if field in idigbioReplacements:
-				processed['idbQuery']['query']['bool']['must'].append({"term": {idigbioReplacements[field]: term}})
+				processed['idbQuery']['query']['bool']['must'].append({"term": {idigbioReplacements[field] + '.keyword': term}})
 				idbAdded = True
 			# Translate terms for PBDB
 			if field in pbdbReplacements:
@@ -88,7 +88,7 @@ class elasticBasedResource(baseResource):
 						errmsg = "The country provided in the terms query could not be found. Please check your query and provide a valid country name"
 						return self.respondWithError(errmsg)
 
-				processed['pbdbQuery']['query']['bool']['must'].append({"term": {pbdbReplacements[field]: term}})
+				processed['pbdbQuery']['query']['bool']['must'].append({"term": {pbdbReplacements[field] + '.keyword': term}})
 				pbdbAdded = True
 
 			# Add Translated Terms to ES Query
@@ -251,6 +251,8 @@ class elasticBasedResource(baseResource):
 						# Add Mikrotax matches						
 						mikrotax_res = self.es.search(index="mikrotax", body={"query": {"match": {"Taxon": hit['_source'][taxonMatch['idigbio']]}}})
 						for mikrotax_hit in mikrotax_res['hits']['hits']:
+							if mikrotax_hit['_source'] is None or mikrotax_hit['_source']['image_path'] is None:
+								continue
 							mikrotax_matches.append({'taxon': mikrotax_hit['_source']['Taxon'], 'url': mikrotax_hit['_source']['url'], 'image': "http://mikrotax.org" + mikrotax_hit['_source']['image_path']})
 					else:
 						noMatch = True
@@ -353,6 +355,8 @@ class elasticBasedResource(baseResource):
 						# Add Mikrotax matches						
 						mikrotax_res = self.es.search(index="mikrotax", body={"query": {"match": {"Taxon": hit['_source'][taxonMatch['pbdb']]}}})
 						for mikrotax_hit in mikrotax_res['hits']['hits']:
+							if mikrotax_hit['_source'] is None or mikrotax_hit['_source']['image_path'] is None:
+								continue
 							mikrotax_matches.append({'taxon': mikrotax_hit['_source']['Taxon'], 'url': mikrotax_hit['_source']['url'], 'image': "http://mikrotax.org" + mikrotax_hit['_source']['image_path']})
 					else:
 						noMatch = True
